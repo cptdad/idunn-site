@@ -9,7 +9,6 @@ const links = [
   { href: "/naturligt-underhall", label: "Naturligt underhåll" },
   { href: "/om-oss", label: "Om oss" },
   { href: "/priser", label: "Priser" },
-  { href: "/blogg", label: "Blogg" },
 ];
 
 export default function Nav() {

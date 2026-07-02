@@ -122,9 +122,9 @@ export default function Home() {
               Ett medlemskap för att fortsätta se ut som dig själv
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-ink/75">
-              Bas, Silver och Guld — förmåner och underhåll för dig som vill
-              vårda ditt resultat över tid. Alltid utifrån vad du faktiskt
-              behöver.
+              Ett enda, personligt medlemskap där du och din sköterska
+              tillsammans kommer överens om en månadskostnad som passar dig.
+              Alltid utifrån vad du faktiskt behöver.
             </p>
             <div className="mt-8">
               <Button href="/naturligt-underhall">Läs om medlemskap</Button>
