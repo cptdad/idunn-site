@@ -1,3 +1,5 @@
+export const basePath = "/wip";
+
 export const site = {
   name: "Iðunn Estetik",
   city: "Stockholm",

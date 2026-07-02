@@ -3,6 +3,7 @@ import Container from "@/components/Container";
 import Button from "@/components/Button";
 import AppleBranch from "@/components/AppleBranch";
 import { treatments } from "@/lib/treatments";
+import { basePath } from "@/lib/site";
 
 export default function Home() {
   return (
@@ -13,7 +14,7 @@ export default function Home() {
         <Container className="relative pt-6 pb-20 md:pt-8 md:pb-28">
           <div className="fade-up mx-auto flex max-w-2xl flex-col items-center text-center">
             <img
-              src="/logo.png"
+              src={`${basePath}/logo.png`}
               alt="Iðunn Estetik Stockholm"
               className="mb-8 h-80 w-auto max-w-full md:h-[28rem]"
             />

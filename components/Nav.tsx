@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { basePath } from "@/lib/site";
 
 const links = [
   { href: "/behandlingar", label: "Behandlingar" },
@@ -18,7 +19,7 @@ export default function Nav() {
       <nav className="container-c flex items-center py-4">
         <Link href="/" aria-label="Iðunn Estetik Stockholm" className="flex shrink-0 items-center">
           <img
-            src="/logo.png"
+            src={`${basePath}/logo.png`}
             alt="Iðunn Estetik Stockholm"
             className="h-14 w-auto md:h-16"
           />
