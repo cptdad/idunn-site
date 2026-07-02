@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function Boka() {
   return (
     <Container className="py-20">
-      <div className="grid gap-12 md:grid-cols-2">
+      <div className="mx-auto grid max-w-5xl gap-12 md:grid-cols-2">
         <div>
           <p className="mb-4 text-sm uppercase tracking-[0.25em] text-gold">
             Boka tid

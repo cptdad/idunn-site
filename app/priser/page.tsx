@@ -18,7 +18,7 @@ const rows = [
 export default function Priser() {
   return (
     <Container className="py-20">
-      <div className="max-w-2xl">
+      <div className="mx-auto max-w-2xl text-center">
         <p className="mb-4 text-sm uppercase tracking-[0.25em] text-gold">
           Priser
         </p>
@@ -44,12 +44,12 @@ export default function Priser() {
         ))}
       </div>
 
-      <p className="mt-6 text-sm text-ink/60">
+      <p className="mt-6 text-center text-sm text-ink/60">
         Prisuppgifter fylls i när klinikens tjänster fastställts. Denna sida är
         en mall.
       </p>
 
-      <div className="mt-10">
+      <div className="mt-10 text-center">
         <Button href="/boka">Boka konsultation</Button>
       </div>
     </Container>

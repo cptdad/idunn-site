@@ -10,19 +10,17 @@ export default function Home() {
       {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="pointer-events-none absolute -right-24 -top-24 h-96 w-96 rounded-full bg-beige/60 blur-3xl" />
-        <Container className="relative py-24 md:py-32">
-          <div className="fade-up max-w-2xl">
-            <p className="mb-5 text-sm uppercase tracking-[0.25em] text-gold">
-              Estetik i Stockholm
-            </p>
-            <h1 className="font-serif text-5xl leading-tight text-ink md:text-6xl">
-              Se pigg, utvilad och fräsch ut — inte behandlad.
+        <Container className="relative pt-6 pb-20 md:pt-8 md:pb-28">
+          <div className="fade-up mx-auto flex max-w-2xl flex-col items-center text-center">
+            <img
+              src="/logo.png"
+              alt="Iðunn Estetik Stockholm"
+              className="mb-8 h-80 w-auto max-w-full md:h-[28rem]"
+            />
+            <h1 className="max-w-xl text-lg font-normal text-ink/75">
+              Naturliga och långsiktiga resultat i en trygg miljö.
             </h1>
-            <p className="mt-6 max-w-xl text-lg text-ink/75">
-              En lugn klinik för naturliga resultat och långsiktigt underhåll.
-              Vi behandlar aldrig mer än vad som behövs — och säger ibland nej.
-            </p>
-            <div className="mt-9 flex flex-wrap gap-4">
+            <div className="mt-9 flex flex-wrap justify-center gap-4">
               <Button href="/boka">Boka konsultation</Button>
               <Button href="/behandlingar" variant="outline">
                 Se behandlingar
@@ -38,52 +36,44 @@ export default function Home() {
           <AppleBranch className="mb-10" />
           <div className="mx-auto max-w-3xl text-center">
             <h2 className="font-serif text-3xl text-ink md:text-4xl">
-              Naturligt, harmoniskt, långsiktigt
+              Less is more
             </h2>
             <p className="mt-6 text-lg text-ink/75">
-              Iðunn var i fornnordisk tro väktaren av ungdomens äpplen — en
-              symbol för förnyelse och bevarande. Vår filosofi är densamma:
-              subtilt underhåll över tid framför stora förändringar.
+              Vi gör hellre små justeringar över tid än stora förändringar — så
+              att du ser ut som dig själv, bara piggare.
             </p>
           </div>
         </Container>
       </section>
 
-      {/* USP */}
+      {/* Tre pelare: naturliga resultat, långsiktighet, trygghet */}
       <section className="py-20">
         <Container>
+          <div className="mb-12 text-center">
+            <h2 className="font-serif text-3xl text-ink md:text-4xl">
+              Det vi står för
+            </h2>
+          </div>
           <div className="grid gap-8 md:grid-cols-3">
             {[
               {
                 t: "Naturliga resultat",
-                d: "Målet är att du ser ut som dig själv — bara piggare och mer utvilad.",
+                d: "Du ska se ut som dig själv — bara piggare och mer utvilad. Aldrig överdrivet, aldrig behandlat.",
               },
               {
-                t: "Medicinsk trygghet",
-                d: "Behandlingar utförs av legitimerad sjuksköterska med utbildning och erfarenhet.",
+                t: "Långsiktighet",
+                d: "Vi tänker i år, inte enstaka besök. Små justeringar över tid som bevarar ditt naturliga uttryck.",
               },
               {
-                t: "Ingen överbehandling",
-                d: "Vi gör aldrig mer än vad som krävs, och avråder när behandling inte behövs.",
-              },
-              {
-                t: "Samma behandlare",
-                d: "Du träffar samma person varje gång och bygger en trygg relation över tid.",
-              },
-              {
-                t: "Alltid konsultation först",
-                d: "Första besöket är en genomgång — inte en garanterad behandling.",
-              },
-              {
-                t: "Långsiktigt underhåll",
-                d: "Fokus på hudens kvalitet och harmoni över år, inte enstaka ingrepp.",
+                t: "Trygghet",
+                d: "Legitimerad sjuksköterska, samma behandlare varje gång och alltid en lugn konsultation först.",
               },
             ].map((c) => (
               <div
                 key={c.t}
-                className="rounded-2xl border border-line bg-cream p-7 transition-shadow hover:shadow-[0_8px_30px_rgba(184,150,90,0.10)]"
+                className="rounded-2xl border border-line bg-cream p-8 text-center transition-shadow hover:shadow-[0_8px_30px_rgba(184,150,90,0.10)]"
               >
-                <h3 className="font-serif text-xl text-ink">{c.t}</h3>
+                <h3 className="font-serif text-2xl text-ink">{c.t}</h3>
                 <p className="mt-3 text-sm leading-relaxed text-ink/70">
                   {c.d}
                 </p>
@@ -96,16 +86,10 @@ export default function Home() {
       {/* Behandlingar preview */}
       <section className="bg-beige/40 py-20">
         <Container>
-          <div className="mb-12 flex items-end justify-between">
+          <div className="mb-12 text-center">
             <h2 className="font-serif text-3xl text-ink md:text-4xl">
               Behandlingsområden
             </h2>
-            <Link
-              href="/behandlingar"
-              className="link-underline hidden text-sm text-gold md:inline"
-            >
-              Alla behandlingar
-            </Link>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
             {treatments.map((t) => (

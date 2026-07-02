@@ -11,7 +11,7 @@ export const metadata: Metadata = {
 export default function Kontakt() {
   return (
     <Container className="py-20">
-      <div className="max-w-2xl">
+      <div className="mx-auto max-w-2xl text-center">
         <p className="mb-4 text-sm uppercase tracking-[0.25em] text-gold">
           Kontakt
         </p>

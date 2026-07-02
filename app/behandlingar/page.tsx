@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function Behandlingar() {
   return (
     <Container className="py-20">
-      <div className="max-w-2xl">
+      <div className="mx-auto max-w-2xl text-center">
         <p className="mb-4 text-sm uppercase tracking-[0.25em] text-gold">
           Behandlingar
         </p>
@@ -55,7 +55,7 @@ export default function Behandlingar() {
         information och inte en uppmaning till behandling.
       </div>
 
-      <div className="mt-10">
+      <div className="mt-10 text-center">
         <Button href="/boka">Boka konsultation</Button>
       </div>
     </Container>

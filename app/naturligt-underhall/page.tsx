@@ -42,7 +42,7 @@ const tiers = [
 export default function Medlemskap() {
   return (
     <Container className="py-20">
-      <div className="max-w-2xl">
+      <div className="mx-auto max-w-2xl text-center">
         <p className="mb-4 text-sm uppercase tracking-[0.25em] text-gold">
           Naturligt underhåll
         </p>
@@ -80,12 +80,12 @@ export default function Medlemskap() {
         ))}
       </div>
 
-      <p className="mt-8 max-w-2xl text-sm text-ink/60">
+      <p className="mx-auto mt-8 max-w-2xl text-center text-sm text-ink/60">
         Exakta priser och villkor presenteras vid konsultation. Betalningslösning
         för medlemskap lanseras i ett senare skede.
       </p>
 
-      <div className="mt-10">
+      <div className="mt-10 text-center">
         <Button href="/boka">Boka konsultation</Button>
       </div>
     </Container>

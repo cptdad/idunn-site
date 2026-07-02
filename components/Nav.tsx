@@ -15,12 +15,16 @@ export default function Nav() {
   const [open, setOpen] = useState(false);
   return (
     <header className="sticky top-0 z-50 border-b border-line/70 bg-cream/85 backdrop-blur">
-      <nav className="container-c flex items-center justify-between py-4">
-        <Link href="/" className="font-serif text-2xl tracking-wide text-ink">
-          Iðunn <span className="text-gold">Estetik</span>
+      <nav className="container-c flex items-center py-4">
+        <Link href="/" aria-label="Iðunn Estetik Stockholm" className="flex shrink-0 items-center">
+          <img
+            src="/logo.png"
+            alt="Iðunn Estetik Stockholm"
+            className="h-14 w-auto md:h-16"
+          />
         </Link>
 
-        <div className="hidden items-center gap-8 md:flex">
+        <div className="hidden flex-1 items-center justify-center gap-8 md:flex">
           {links.map((l) => (
             <Link
               key={l.href}
@@ -30,16 +34,17 @@ export default function Nav() {
               {l.label}
             </Link>
           ))}
-          <Link
-            href="/boka"
-            className="rounded-full bg-gold px-6 py-2.5 text-sm text-cream transition-colors hover:bg-gold-light"
-          >
-            Boka tid
-          </Link>
         </div>
 
+        <Link
+          href="/boka"
+          className="hidden shrink-0 rounded-full bg-gold px-6 py-2.5 text-sm text-cream transition-colors hover:bg-gold-light md:inline-block"
+        >
+          Boka tid
+        </Link>
+
         <button
-          className="md:hidden text-ink"
+          className="ml-auto md:hidden text-ink"
           onClick={() => setOpen((v) => !v)}
           aria-label="Meny"
           aria-expanded={open}
