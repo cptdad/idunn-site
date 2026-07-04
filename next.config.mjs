@@ -1,18 +1,34 @@
 /** @type {import('next').NextConfig} */
-// Under utvecklingstiden ligger sidan under /wip.
-// Vid skarp lansering på roten: ta bort basePath och redirect nedan.
+// basePath styrs av env:
+//  - Cloudflare/lokalt: default "/wip"
+//  - GitHub Pages: NEXT_PUBLIC_BASE_PATH="/idunn-site" (repo-namnet)
+const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "/wip";
+const isStatic = process.env.STATIC_EXPORT === "true";
+
 const nextConfig = {
   reactStrictMode: true,
-  basePath: "/wip",
-  async redirects() {
-    return [
-      // Skicka bara-domänen (roten) vidare till /wip
-      { source: "/", destination: "/wip", basePath: false, permanent: false },
-    ];
-  },
+  basePath,
+  ...(isStatic
+    ? {
+        // Statisk export för GitHub Pages
+        output: "export",
+        trailingSlash: true,
+        images: { unoptimized: true },
+      }
+    : {
+        // Dynamisk (Cloudflare/lokalt): skicka roten vidare till basePath
+        async redirects() {
+          return [
+            { source: "/", destination: basePath, basePath: false, permanent: false },
+          ];
+        },
+      }),
 };
+
 export default nextConfig;
 
-// OpenNext (Cloudflare) – gör Cloudflare-bindings tillgängliga under `next dev`.
+// OpenNext (Cloudflare) – endast i lokal dev, aldrig vid statisk export.
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-initOpenNextCloudflareForDev();
+if (!isStatic && process.env.NODE_ENV === "development") {
+  initOpenNextCloudflareForDev();
+}
