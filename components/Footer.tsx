@@ -22,12 +22,12 @@ export default function Footer() {
         <div className="text-sm text-ink/80">
           <p className="mb-3 font-medium text-ink">Sidor</p>
           <ul className="space-y-1.5">
-            <li><Link href="/behandlingar" className="hover:text-ink">Behandlingar</Link></li>
-            <li><Link href="/naturligt-underhall" className="hover:text-ink">Naturligt underhåll</Link></li>
-            <li><Link href="/priser" className="hover:text-ink">Priser</Link></li>
-            <li><Link href="/kontakt" className="hover:text-ink">Kontakt</Link></li>
-            <li><Link href="/integritet" className="hover:text-ink">Integritetspolicy</Link></li>
-            <li><Link href="/villkor" className="hover:text-ink">Villkor</Link></li>
+            <li><Link href="/wip/behandlingar" className="hover:text-ink">Behandlingar</Link></li>
+            <li><Link href="/wip/naturligt-underhall" className="hover:text-ink">Naturligt underhåll</Link></li>
+            <li><Link href="/wip/priser" className="hover:text-ink">Priser</Link></li>
+            <li><Link href="/wip/kontakt" className="hover:text-ink">Kontakt</Link></li>
+            <li><Link href="/wip/integritet" className="hover:text-ink">Integritetspolicy</Link></li>
+            <li><Link href="/wip/villkor" className="hover:text-ink">Villkor</Link></li>
           </ul>
         </div>
       </div>

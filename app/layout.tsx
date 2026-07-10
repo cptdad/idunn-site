@@ -1,7 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import Nav from "@/components/Nav";
-import Footer from "@/components/Footer";
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://idunn-estetik.se"),
@@ -45,11 +43,7 @@ export default function RootLayout({
           rel="stylesheet"
         />
       </head>
-      <body className="font-sans antialiased">
-        <Nav />
-        <main>{children}</main>
-        <Footer />
-      </body>
+      <body className="font-sans antialiased">{children}</body>
     </html>
   );
 }

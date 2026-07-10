@@ -1,4 +1,4 @@
-export const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "/wip";
+export const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 export const site = {
   name: "Iðunn Estetik",

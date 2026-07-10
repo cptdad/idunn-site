@@ -56,7 +56,7 @@ export default function Behandlingar() {
       </div>
 
       <div className="mt-10 text-center">
-        <Button href="/boka">Boka konsultation</Button>
+        <Button href="/wip/boka">Boka konsultation</Button>
       </div>
     </Container>
   );

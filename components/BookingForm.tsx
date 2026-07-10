@@ -88,7 +88,7 @@ export default function BookingForm() {
         <span>
           Jag är över 18 år och samtycker till att Iðunn Estetik kontaktar mig
           angående min förfrågan. Se{" "}
-          <a href="/integritet" className="text-gold underline">
+          <a href="/wip/integritet" className="text-gold underline">
             integritetspolicyn
           </a>
           .

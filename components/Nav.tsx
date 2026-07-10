@@ -5,10 +5,10 @@ import { useState } from "react";
 import { basePath } from "@/lib/site";
 
 const links = [
-  { href: "/behandlingar", label: "Behandlingar" },
-  { href: "/naturligt-underhall", label: "Naturligt underhåll" },
-  { href: "/om-oss", label: "Om oss" },
-  { href: "/priser", label: "Priser" },
+  { href: "/wip/behandlingar", label: "Behandlingar" },
+  { href: "/wip/naturligt-underhall", label: "Naturligt underhåll" },
+  { href: "/wip/om-oss", label: "Om oss" },
+  { href: "/wip/priser", label: "Priser" },
 ];
 
 export default function Nav() {
@@ -16,7 +16,7 @@ export default function Nav() {
   return (
     <header className="sticky top-0 z-50 border-b border-line/70 bg-cream/85 backdrop-blur">
       <nav className="container-c flex items-center py-4">
-        <Link href="/" aria-label="Iðunn Estetik Stockholm" className="flex shrink-0 items-center">
+        <Link href="/wip" aria-label="Iðunn Estetik Stockholm" className="flex shrink-0 items-center">
           <img
             src={`${basePath}/logo.png`}
             alt="Iðunn Estetik Stockholm"
@@ -37,7 +37,7 @@ export default function Nav() {
         </div>
 
         <Link
-          href="/boka"
+          href="/wip/boka"
           className="hidden shrink-0 rounded-full bg-gold px-6 py-2.5 text-sm text-cream transition-colors hover:bg-gold-light md:inline-block"
         >
           Boka tid
@@ -69,7 +69,7 @@ export default function Nav() {
               </Link>
             ))}
             <Link
-              href="/boka"
+              href="/wip/boka"
               className="rounded-full bg-gold px-6 py-2.5 text-center text-sm text-cream"
               onClick={() => setOpen(false)}
             >
