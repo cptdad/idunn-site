@@ -3,6 +3,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import Stripe from "stripe";
 import { getStripe } from "@/lib/stripe";
 import { sendBookingConfirmation } from "@/lib/bookingEmails";
+import { requiredBlocks, slotTimes } from "@/lib/slots";
 
 export const dynamic = "force-dynamic";
 
@@ -20,17 +21,19 @@ async function finalizeBooking(
   )
     .bind(paymentIntent, bookingId)
     .run();
-  if (b.slot_id) {
-    await env.DB.prepare("UPDATE slots SET status = 'booked' WHERE id = ?")
-      .bind(b.slot_id)
-      .run();
-  }
+  const times = slotTimes(b.tid, requiredBlocks(b.duration || 30));
+  const ph = times.map(() => "?").join(", ");
+  await env.DB.prepare(
+    `UPDATE slots SET status = 'booked' WHERE datum = ? AND tid IN (${ph}) AND status = 'pending'`
+  )
+    .bind(b.datum, ...times)
+    .run();
   await sendBookingConfirmation(env, b);
 }
 
 async function releaseBooking(env: any, bookingId: string) {
   const b: any = await env.DB.prepare(
-    "SELECT slot_id, status FROM bookings WHERE id = ?"
+    "SELECT datum, tid, duration, status FROM bookings WHERE id = ?"
   )
     .bind(bookingId)
     .first();
@@ -38,13 +41,13 @@ async function releaseBooking(env: any, bookingId: string) {
   await env.DB.prepare("UPDATE bookings SET status = 'expired' WHERE id = ?")
     .bind(bookingId)
     .run();
-  if (b.slot_id) {
-    await env.DB.prepare(
-      "UPDATE slots SET status = 'available' WHERE id = ? AND status = 'pending'"
-    )
-      .bind(b.slot_id)
-      .run();
-  }
+  const times = slotTimes(b.tid, requiredBlocks(b.duration || 30));
+  const ph = times.map(() => "?").join(", ");
+  await env.DB.prepare(
+    `UPDATE slots SET status = 'available' WHERE datum = ? AND tid IN (${ph}) AND status = 'pending'`
+  )
+    .bind(b.datum, ...times)
+    .run();
 }
 
 async function recordMembership(env: any, session: Stripe.Checkout.Session) {

@@ -33,7 +33,6 @@ export default function AdminPage() {
   const [tid, setTid] = useState("");
   const [start, setStart] = useState("");
   const [slut, setSlut] = useState("");
-  const [slotDuration, setSlotDuration] = useState(30);
 
   async function api(method: string, body?: any, query = "") {
     const res = await fetch(`/api/admin/slots${query}`, {
@@ -240,7 +239,7 @@ export default function AdminPage() {
     e.preventDefault();
     if (!datum || !tid) return;
     setBusy(true);
-    await api("POST", { datum, tid, duration: slotDuration });
+    await api("POST", { datum, tid });
     setTid("");
     await refresh();
     setBusy(false);
@@ -250,7 +249,7 @@ export default function AdminPage() {
     e.preventDefault();
     if (!datum || !start || !slut) return;
     setBusy(true);
-    await api("POST", { datum, start, slut, duration: slotDuration });
+    await api("POST", { datum, start, slut });
     await refresh();
     setBusy(false);
   }
@@ -338,8 +337,8 @@ export default function AdminPage() {
 
       <h2 className="mt-16 font-serif text-2xl text-ink">Hantera tider</h2>
       <p className="mt-1 text-sm text-ink/60">
-        Välj längd (30–90 min) per tid. Lediga tider visas för kunder på
-        bokningssidan.
+        Lägg till lediga 30-minuterstider. Behandlingens längd avgör hur många i
+        följd som bokas.
       </p>
 
       <div className="mt-6 grid gap-6 md:grid-cols-2">
@@ -364,18 +363,6 @@ export default function AdminPage() {
             onChange={(e) => setTid(e.target.value)}
             className="mt-1 w-full rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
           />
-          <label className="mt-3 block text-sm text-ink/80">Längd</label>
-          <select
-            value={slotDuration}
-            onChange={(e) => setSlotDuration(Number(e.target.value))}
-            className="mt-1 w-full rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
-          >
-            {[30, 45, 60, 90].map((d) => (
-              <option key={d} value={d}>
-                {d} min
-              </option>
-            ))}
-          </select>
           <button
             type="submit"
             disabled={busy}
@@ -394,8 +381,8 @@ export default function AdminPage() {
             Generera tider för en dag
           </h2>
           <p className="mt-1 text-xs text-ink/50">
-            Skapar tider med vald längd mellan start och slut (använder datumet
-            och längden till vänster).
+            Skapar 30-min-tider mellan start och slut (använder datumet till
+            vänster).
           </p>
           <label className="mt-4 block text-sm text-ink/80">Från</label>
           <input
@@ -443,7 +430,7 @@ export default function AdminPage() {
                         : "border-gold text-ink"
                     }`}
                   >
-                    {s.tid} ({s.duration} min)
+                    {s.tid}
                     {s.status === "booked" ? " (bokad)" : ""}
                     <button
                       onClick={() => del(s.id)}

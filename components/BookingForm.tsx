@@ -8,6 +8,7 @@ import {
   type TimeConfig,
 } from "@/lib/treatments";
 import { validatePersonnummer } from "@/lib/personnummer";
+import { requiredBlocks, slotTimes } from "@/lib/slots";
 
 type Slot = { id: number; datum: string; tid: string; duration: number };
 type Status = "idle" | "sending" | "ok" | "error";
@@ -134,9 +135,15 @@ export default function BookingForm() {
   const currentPrice = quantity >= 1 ? tiers[category]?.[quantity] : undefined;
   const requiredMin =
     quantity >= 1 ? estimatedMinutes(currentCat, quantity, timeConfig) : 0;
+  const neededBlocks = requiredBlocks(requiredMin);
+  const availTimes = new Set(
+    slots.filter((s) => s.datum === selectedDate).map((s) => s.tid)
+  );
+  const fits = (startTid: string) =>
+    slotTimes(startTid, neededBlocks).every((t) => availTimes.has(t));
   const selectedSlot = slots.find((s) => s.id === selected);
-  const slotTooShort =
-    !!selectedSlot && requiredMin > 0 && selectedSlot.duration < requiredMin;
+  const notEnoughTime =
+    !!selectedSlot && requiredMin > 0 && !fits(selectedSlot.tid);
   const pnrCheck = pnr ? validatePersonnummer(pnr) : null;
 
   function toggleArea(a: string) {
@@ -162,9 +169,9 @@ export default function BookingForm() {
       );
       return;
     }
-    if (slotTooShort) {
+    if (notEnoughTime) {
       setError(
-        `Den valda tiden räcker inte. Välj en tid på minst ${requiredMin} min.`
+        "Det finns inte tillräckligt med tid från vald starttid. Välj en annan starttid."
       );
       return;
     }
@@ -277,16 +284,15 @@ export default function BookingForm() {
               className="w-full rounded-lg border border-line bg-cream px-4 py-3 text-ink outline-none focus:border-gold disabled:opacity-50"
             >
               <option value="">Välj tid</option>
-              {timesForDate.map((s) => (
-                <option
-                  key={s.id}
-                  value={s.id}
-                  disabled={requiredMin > 0 && s.duration < requiredMin}
-                >
-                  {s.tid} ({s.duration} min)
-                  {requiredMin > 0 && s.duration < requiredMin ? " – för kort" : ""}
-                </option>
-              ))}
+              {timesForDate.map((s) => {
+                const ok = requiredMin === 0 || fits(s.tid);
+                return (
+                  <option key={s.id} value={s.id} disabled={!ok}>
+                    {s.tid}
+                    {!ok ? " – ryms ej" : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
         )}
@@ -362,13 +368,12 @@ export default function BookingForm() {
               <div>
                 Beräknat: ca{" "}
                 <strong>{currentPrice.toLocaleString("sv-SE")} kr</strong> · ca{" "}
-                {requiredMin} min — för den här kombinationen lägger vi upp en
-                plan vid en konsultation.
+                {requiredMin} min
               </div>
-              {slotTooShort && (
+              {notEnoughTime && (
                 <div className="mt-1 text-sage-dark">
-                  Den valda tiden räcker inte. Välj en tid på minst {requiredMin}{" "}
-                  min.
+                  Det finns inte tillräckligt med tid från vald starttid. Välj en
+                  annan starttid.
                 </div>
               )}
             </div>
@@ -477,7 +482,7 @@ export default function BookingForm() {
 
       <button
         type="submit"
-        disabled={status === "sending" || !currentPrice || slotTooShort}
+        disabled={status === "sending" || !currentPrice || notEnoughTime}
         className="mt-6 w-full rounded-full bg-gold px-8 py-3.5 text-cream transition-colors hover:bg-gold-light disabled:opacity-60"
       >
         {status === "sending" ? "Bokar…" : "Boka & betala"}

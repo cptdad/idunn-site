@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { refundBooking, hoursUntil } from "@/lib/refunds";
+import { requiredBlocks, slotTimes } from "@/lib/slots";
 
 export const dynamic = "force-dynamic";
 
@@ -61,11 +62,13 @@ export async function POST(request: Request) {
       await env.DB.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?")
         .bind(b.id)
         .run();
-      if (b.slot_id) {
-        await env.DB.prepare("UPDATE slots SET status = 'available' WHERE id = ?")
-          .bind(b.slot_id)
-          .run();
-      }
+      const times = slotTimes(b.tid, requiredBlocks(b.duration || 30));
+      const ph = times.map(() => "?").join(", ");
+      await env.DB.prepare(
+        `UPDATE slots SET status = 'available' WHERE datum = ? AND tid IN (${ph}) AND status = 'booked'`
+      )
+        .bind(b.datum, ...times)
+        .run();
       return NextResponse.json({ ok: true, cancelled: true, refundFraction: fraction });
     }
 
@@ -73,39 +76,52 @@ export async function POST(request: Request) {
       if (!newSlotId) {
         return NextResponse.json({ ok: false, error: "Välj en ny tid." }, { status: 400 });
       }
-      const slot: any = await env.DB.prepare(
-        "SELECT id, datum, tid, status, duration FROM slots WHERE id = ?"
+      const startSlot: any = await env.DB.prepare(
+        "SELECT id, datum, tid, status FROM slots WHERE id = ?"
       )
         .bind(newSlotId)
         .first();
-      if (!slot || slot.status !== "available") {
+      if (!startSlot || startSlot.status !== "available") {
         return NextResponse.json(
           { ok: false, error: "Tiden är inte längre tillgänglig." },
           { status: 409 }
         );
       }
-      const upd = await env.DB.prepare(
-        "UPDATE slots SET status = 'booked' WHERE id = ? AND status = 'available'"
+      const blocks = requiredBlocks(b.duration || 30);
+      const newTimes = slotTimes(startSlot.tid, blocks);
+      const nph = newTimes.map(() => "?").join(", ");
+      const availRow: any = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM slots WHERE datum = ? AND tid IN (${nph}) AND status = 'available'`
       )
-        .bind(newSlotId)
-        .run();
-      if (!upd.meta || upd.meta.changes !== 1) {
+        .bind(startSlot.datum, ...newTimes)
+        .first();
+      if (!availRow || availRow.n !== blocks) {
         return NextResponse.json(
-          { ok: false, error: "Tiden hann bli bokad. Välj en annan." },
+          {
+            ok: false,
+            error: "Det finns inte tillräckligt med sammanhängande tid från den nya starttiden.",
+          },
           { status: 409 }
         );
       }
-      if (b.slot_id) {
-        await env.DB.prepare("UPDATE slots SET status = 'available' WHERE id = ?")
-          .bind(b.slot_id)
-          .run();
-      }
       await env.DB.prepare(
-        "UPDATE bookings SET slot_id = ?, datum = ?, tid = ?, duration = ?, reminded = 0 WHERE id = ?"
+        `UPDATE slots SET status = 'booked' WHERE datum = ? AND tid IN (${nph}) AND status = 'available'`
       )
-        .bind(newSlotId, slot.datum, slot.tid, slot.duration, b.id)
+        .bind(startSlot.datum, ...newTimes)
         .run();
-      return NextResponse.json({ ok: true, nar: `${slot.datum} kl. ${slot.tid}` });
+      const oldTimes = slotTimes(b.tid, requiredBlocks(b.duration || 30));
+      const oph = oldTimes.map(() => "?").join(", ");
+      await env.DB.prepare(
+        `UPDATE slots SET status = 'available' WHERE datum = ? AND tid IN (${oph}) AND status = 'booked'`
+      )
+        .bind(b.datum, ...oldTimes)
+        .run();
+      await env.DB.prepare(
+        "UPDATE bookings SET slot_id = ?, datum = ?, tid = ?, reminded = 0 WHERE id = ?"
+      )
+        .bind(newSlotId, startSlot.datum, startSlot.tid, b.id)
+        .run();
+      return NextResponse.json({ ok: true, nar: `${startSlot.datum} kl. ${startSlot.tid}` });
     }
 
     return NextResponse.json({ ok: false, error: "Okänd åtgärd." }, { status: 400 });

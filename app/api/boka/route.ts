@@ -5,17 +5,16 @@ import { verifyTurnstile } from "@/lib/turnstile";
 import { getStripe } from "@/lib/stripe";
 import { sendBookingConfirmation } from "@/lib/bookingEmails";
 import { categoryByKey, computeQuantity, estimatedMinutes } from "@/lib/treatments";
+import { requiredBlocks, slotTimes, BLOCK } from "@/lib/slots";
 
 export const dynamic = "force-dynamic";
 
-// Uppslag av namn/adress från personnummer – bundet till bokningen (serverside).
 async function lookupNamnAdress(
   env: any,
   normalizedPnr: string
 ): Promise<{ namn?: string; adress?: string } | null> {
   const apiKey = env.PNR_LOOKUP_API_KEY;
   if (!apiKey) return null;
-  // TODO: anropa vald tjänst med normalizedPnr och returnera namn/adress.
   return null;
 }
 
@@ -38,7 +37,6 @@ export async function POST(request: Request) {
 
     const env = getCloudflareContext().env as any;
 
-    // 1) Turnstile
     const ip = request.headers.get("CF-Connecting-IP") || undefined;
     const human = await verifyTurnstile(
       turnstileToken || "",
@@ -67,9 +65,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Kontrollera att tiden är ledig
+    // Starttid (block)
     const slot: any = await env.DB.prepare(
-      "SELECT id, datum, tid, status, duration FROM slots WHERE id = ?"
+      "SELECT id, datum, tid, status FROM slots WHERE id = ?"
     )
       .bind(slotId)
       .first();
@@ -80,7 +78,7 @@ export async function POST(request: Request) {
       );
     }
 
-    // Pris från tiered prislista (fillers per ml / toxin per område)
+    // Pris
     const cat = categoryByKey(category);
     const mlWeights: Record<string, number> = {};
     try {
@@ -109,7 +107,7 @@ export async function POST(request: Request) {
       (Array.isArray(areas) ? areas : []).join(", ") || "–"
     } (${qty} ${cat.unitPlural})`;
 
-    // Kräver att den valda tiden är tillräckligt lång för behandlingen
+    // Behandlingstid → antal block → tider som måste vara lediga i följd
     let timeCfg = { base: 15, per_ml: 10, per_area: 5 };
     try {
       const tc: any = await env.DB.prepare(
@@ -118,13 +116,24 @@ export async function POST(request: Request) {
       if (tc) timeCfg = { base: tc.base, per_ml: tc.per_ml, per_area: tc.per_area };
     } catch {}
     const needMin = estimatedMinutes(cat, qty, timeCfg);
-    if ((slot.duration || 30) < needMin) {
+    const blocks = requiredBlocks(needMin);
+    const times = slotTimes(slot.tid, blocks);
+    const duration = blocks * BLOCK;
+    const placeholders = times.map(() => "?").join(", ");
+
+    // Finns det tillräckligt med sammanhängande lediga block?
+    const availRow: any = await env.DB.prepare(
+      `SELECT COUNT(*) AS n FROM slots WHERE datum = ? AND tid IN (${placeholders}) AND status = 'available'`
+    )
+      .bind(slot.datum, ...times)
+      .first();
+    if (!availRow || availRow.n !== blocks) {
       return NextResponse.json(
         {
           ok: false,
-          error: `Den valda tiden är för kort för behandlingen (behöver ~${needMin} min). Välj en längre tid.`,
+          error: "Det finns inte tillräckligt med sammanhängande tid från den valda starttiden. Välj en annan tid.",
         },
-        { status: 400 }
+        { status: 409 }
       );
     }
 
@@ -141,43 +150,18 @@ export async function POST(request: Request) {
     const nar = `${slot.datum} kl. ${slot.tid}`;
     const base = env.SITE_URL || new URL(request.url).origin;
 
-    // ---- Gratis (t.ex. konsultation): boka direkt ----
-    if (price <= 0) {
-      const upd = await env.DB.prepare(
-        "UPDATE slots SET status = 'booked' WHERE id = ? AND status = 'available'"
-      )
-        .bind(slotId)
-        .run();
-      if (!upd.meta || upd.meta.changes !== 1) {
-        return NextResponse.json(
-          { ok: false, error: "Tiden hann bli bokad. Välj en annan tid." },
-          { status: 409 }
-        );
-      }
-      await env.DB.prepare(
-        "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid, token, amount, duration, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
-      )
-        .bind(
-          finalNamn, epost, telefon ?? null, omrade ?? null, meddelande ?? null,
-          pnr.normalized ?? null, finalAdress, slotId, slot.datum, slot.tid, token, 0, slot.duration
-        )
-        .run();
-
-      await sendBookingConfirmation(env, {
-        namn: finalNamn, epost, telefon, omrade, meddelande,
-        personnummer: pnr.display, adress: finalAdress,
-        datum: slot.datum, tid: slot.tid, token, amount: 0, duration: slot.duration,
-      });
-      return NextResponse.json({ ok: true, nar, duration: slot.duration });
-    }
-
-    // ---- Betald behandling: håll tiden och skapa Stripe Checkout ----
+    // Håll alla berörda block (pending)
     const hold = await env.DB.prepare(
-      "UPDATE slots SET status = 'pending' WHERE id = ? AND status = 'available'"
+      `UPDATE slots SET status = 'pending' WHERE datum = ? AND tid IN (${placeholders}) AND status = 'available'`
     )
-      .bind(slotId)
+      .bind(slot.datum, ...times)
       .run();
-    if (!hold.meta || hold.meta.changes !== 1) {
+    if (!hold.meta || hold.meta.changes !== blocks) {
+      await env.DB.prepare(
+        `UPDATE slots SET status = 'available' WHERE datum = ? AND tid IN (${placeholders}) AND status = 'pending'`
+      )
+        .bind(slot.datum, ...times)
+        .run();
       return NextResponse.json(
         { ok: false, error: "Tiden hann bli bokad. Välj en annan tid." },
         { status: 409 }
@@ -189,7 +173,7 @@ export async function POST(request: Request) {
     )
       .bind(
         finalNamn, epost, telefon ?? null, omrade ?? null, meddelande ?? null,
-        pnr.normalized ?? null, finalAdress, slotId, slot.datum, slot.tid, token, price, slot.duration
+        pnr.normalized ?? null, finalAdress, slotId, slot.datum, slot.tid, token, price, duration
       )
       .run();
     const bookingId = ins.meta?.last_row_id;
@@ -217,11 +201,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ ok: true, checkoutUrl: session.url });
     } catch (e) {
       console.error("Stripe-fel:", e);
-      // Släpp tiden igen
       await env.DB.prepare(
-        "UPDATE slots SET status = 'available' WHERE id = ? AND status = 'pending'"
+        `UPDATE slots SET status = 'available' WHERE datum = ? AND tid IN (${placeholders}) AND status = 'pending'`
       )
-        .bind(slotId)
+        .bind(slot.datum, ...times)
         .run();
       await env.DB.prepare("UPDATE bookings SET status = 'expired' WHERE id = ?")
         .bind(bookingId)
