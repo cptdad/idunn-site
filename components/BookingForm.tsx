@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { categories } from "@/lib/treatments";
+import { categories, computeQuantity } from "@/lib/treatments";
 import { validatePersonnummer } from "@/lib/personnummer";
 
 type Slot = { id: number; datum: string; tid: string };
@@ -15,7 +15,6 @@ export default function BookingForm() {
 
   const [tiers, setTiers] = useState<Tiers>({});
   const [category, setCategory] = useState<string>(categories[0]?.key || "fillers");
-  const [quantity, setQuantity] = useState<number>(1);
   const [areas, setAreas] = useState<string[]>([]);
 
   const [pnr, setPnr] = useState("");
@@ -100,7 +99,9 @@ export default function BookingForm() {
   }
 
   const currentCat = categories.find((c) => c.key === category)!;
-  const currentPrice = tiers[category]?.[quantity];
+  const quantity = computeQuantity(currentCat, areas);
+  const currentPrice = quantity >= 1 ? tiers[category]?.[quantity] : undefined;
+  const tooLarge = quantity > 4;
   const pnrCheck = pnr ? validatePersonnummer(pnr) : null;
 
   function toggleArea(a: string) {
@@ -114,6 +115,16 @@ export default function BookingForm() {
     setError("");
     if (!selected) {
       setError("Välj en tid först.");
+      return;
+    }
+    if (areas.length === 0) {
+      setError("Välj minst ett område.");
+      return;
+    }
+    if (!currentPrice) {
+      setError(
+        "För den här kombinationen behöver vi lägga upp en plan — boka en konsultation."
+      );
       return;
     }
     const v = validatePersonnummer(pnr);
@@ -138,7 +149,6 @@ export default function BookingForm() {
           epost,
           telefon,
           category,
-          quantity,
           areas,
           meddelande,
           samtycke,
@@ -252,54 +262,44 @@ export default function BookingForm() {
         </div>
       </div>
 
-      {/* Antal (ml / områden) */}
+      {/* Områden */}
       <div className="mt-5">
         <label className="mb-2 block text-sm text-ink/80">
-          Antal {currentCat.unitPlural}
-        </label>
-        <select
-          value={quantity}
-          onChange={(e) => setQuantity(Number(e.target.value))}
-          className="w-full rounded-lg border border-line bg-cream px-4 py-3 text-ink outline-none focus:border-gold"
-        >
-          {[1, 2, 3, 4].map((q) => (
-            <option key={q} value={q}>
-              {q} {currentCat.unitPlural}
-              {tiers[category]?.[q] != null
-                ? ` — ${tiers[category][q].toLocaleString("sv-SE")} kr`
-                : ""}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Områden (informativt) */}
-      <div className="mt-5">
-        <label className="mb-2 block text-sm text-ink/80">
-          Områden (välj de som är aktuella)
+          Välj de områden du önskar
         </label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
           {currentCat.areas.map((a) => (
             <label
-              key={a}
+              key={a.name}
               className="flex items-start gap-2 text-sm text-ink/75"
             >
               <input
                 type="checkbox"
-                checked={areas.includes(a)}
-                onChange={() => toggleArea(a)}
+                checked={areas.includes(a.name)}
+                onChange={() => toggleArea(a.name)}
                 className="mt-1 h-4 w-4 accent-gold"
               />
-              <span>{a}</span>
+              <span>{a.name}</span>
             </label>
           ))}
         </div>
       </div>
 
-      {currentPrice != null && (
+      {/* Beräknad mängd + pris */}
+      {areas.length > 0 && (
         <div className="mt-4 rounded-lg border border-gold bg-cream p-3 text-center text-sm text-ink">
-          Pris: <strong>{currentPrice.toLocaleString("sv-SE")} kr</strong> —
-          betalas vid bokning.
+          {tooLarge || !currentPrice ? (
+            <span>
+              Beräknat: ca {quantity} {currentCat.unitPlural} — för den här
+              kombinationen lägger vi upp en plan vid en konsultation.
+            </span>
+          ) : (
+            <span>
+              Ca {quantity} {currentCat.unitPlural} · Pris:{" "}
+              <strong>{currentPrice.toLocaleString("sv-SE")} kr</strong> —
+              betalas vid bokning.
+            </span>
+          )}
         </div>
       )}
 
@@ -399,7 +399,7 @@ export default function BookingForm() {
 
       <button
         type="submit"
-        disabled={status === "sending"}
+        disabled={status === "sending" || !currentPrice}
         className="mt-6 w-full rounded-full bg-gold px-8 py-3.5 text-cream transition-colors hover:bg-gold-light disabled:opacity-60"
       >
         {status === "sending" ? "Bokar…" : "Boka & betala"}

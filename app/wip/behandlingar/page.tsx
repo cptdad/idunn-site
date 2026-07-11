@@ -39,9 +39,9 @@ export default function Behandlingar() {
                 <p className="text-sm font-medium text-ink">Områden vi behandlar</p>
                 <ul className="mt-2 space-y-1 text-sm text-ink/70">
                   {c.areas.map((a) => (
-                    <li key={a} className="flex gap-2">
+                    <li key={a.name} className="flex gap-2">
                       <span className="text-gold">•</span>
-                      {a}
+                      {a.name}
                     </li>
                   ))}
                 </ul>

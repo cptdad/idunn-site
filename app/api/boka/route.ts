@@ -4,7 +4,7 @@ import { validatePersonnummer } from "@/lib/personnummer";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { getStripe } from "@/lib/stripe";
 import { sendBookingConfirmation } from "@/lib/bookingEmails";
-import { categoryByKey } from "@/lib/treatments";
+import { categoryByKey, computeQuantity } from "@/lib/treatments";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +30,6 @@ export async function POST(request: Request) {
       epost,
       telefon,
       category,
-      quantity,
       areas,
       meddelande,
       samtycke,
@@ -83,7 +82,7 @@ export async function POST(request: Request) {
 
     // Pris från tiered prislista (fillers per ml / toxin per område)
     const cat = categoryByKey(category);
-    const qty = Math.round(Number(quantity));
+    const qty = cat ? computeQuantity(cat, Array.isArray(areas) ? areas : []) : 0;
     let price = 0;
     if (cat && qty >= 1) {
       const prow: any = await env.DB.prepare(
