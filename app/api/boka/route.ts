@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { validatePersonnummer } from "@/lib/personnummer";
+import { verifyTurnstile } from "@/lib/turnstile";
 
 export const dynamic = "force-dynamic";
 
@@ -27,6 +28,18 @@ async function sendEmail(apiKey: string, msg: Msg) {
   return res.ok;
 }
 
+// Uppslag av namn/adress från personnummer – bundet till bokningen (serverside).
+// Aktiveras när PNR_LOOKUP_API_KEY satts och tjänsten kopplats in.
+async function lookupNamnAdress(
+  env: any,
+  normalizedPnr: string
+): Promise<{ namn?: string; adress?: string } | null> {
+  const apiKey = env.PNR_LOOKUP_API_KEY;
+  if (!apiKey) return null;
+  // TODO: anropa vald tjänst (t.ex. Roaring) med normalizedPnr och returnera namn/adress.
+  return null;
+}
+
 export async function POST(request: Request) {
   try {
     const body = await request.json();
@@ -40,7 +53,24 @@ export async function POST(request: Request) {
       omrade,
       meddelande,
       samtycke,
+      turnstileToken,
     } = body ?? {};
+
+    const env = getCloudflareContext().env as any;
+
+    // 1) Turnstile – blockera bottar/missbruk
+    const ip = request.headers.get("CF-Connecting-IP") || undefined;
+    const human = await verifyTurnstile(
+      turnstileToken || "",
+      env.TURNSTILE_SECRET_KEY || "",
+      ip
+    );
+    if (!human) {
+      return NextResponse.json(
+        { ok: false, error: "Verifiering misslyckades. Ladda om sidan och försök igen." },
+        { status: 403 }
+      );
+    }
 
     if (!namn || !epost || !samtycke || !slotId || !personnummer) {
       return NextResponse.json(
@@ -56,8 +86,6 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-
-    const env = getCloudflareContext().env as any;
 
     // Kontrollera att tiden fortfarande är ledig
     const slot: any = await env.DB.prepare(
@@ -87,19 +115,28 @@ export async function POST(request: Request) {
       );
     }
 
+    // Uppslag bundet till bokningen (när tjänst är konfigurerad)
+    let finalNamn = namn;
+    let finalAdress = adress ?? null;
+    const uppslag = await lookupNamnAdress(env, pnr.normalized || "");
+    if (uppslag) {
+      if (uppslag.namn) finalNamn = uppslag.namn;
+      if (uppslag.adress) finalAdress = uppslag.adress;
+    }
+
     // Spara bokningen
     try {
       await env.DB.prepare(
         "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       )
         .bind(
-          namn,
+          finalNamn,
           epost,
           telefon ?? null,
           omrade ?? null,
           meddelande ?? null,
           pnr.normalized ?? null,
-          adress ?? null,
+          finalAdress,
           slotId,
           slot.datum,
           slot.tid
@@ -117,31 +154,29 @@ export async function POST(request: Request) {
     const nar = `${slot.datum} kl. ${slot.tid}`;
 
     if (apiKey) {
-      // Notis till kliniken
       await sendEmail(apiKey, {
         from,
         to: notify,
-        subject: `Ny bokning – ${namn} (${nar})`,
+        subject: `Ny bokning – ${finalNamn} (${nar})`,
         text:
           `Ny bokning via idunn-estetik.se:\n\n` +
           `Tid: ${nar} (30 min)\n` +
-          `Namn: ${namn}\n` +
+          `Namn: ${finalNamn}\n` +
           `Personnummer: ${pnr.display}\n` +
-          `Adress: ${adress || "-"}\n` +
+          `Adress: ${finalAdress || "-"}\n` +
           `E-post: ${epost}\n` +
           `Telefon: ${telefon || "-"}\n` +
           `Behandlingsområde: ${omrade || "-"}\n` +
           `Meddelande: ${meddelande || "-"}\n`,
       });
 
-      // Bekräftelse till kunden
       await sendEmail(apiKey, {
         from,
         to: epost,
         reply_to: notify,
         subject: "Din bokning – Iðunn Estetik",
         text:
-          `Hej ${namn},\n\n` +
+          `Hej ${finalNamn},\n\n` +
           `Tack för din bokning hos Iðunn Estetik.\n\n` +
           `Tid: ${nar} (30 minuter)\n\n` +
           `Första besöket är alltid en lugn genomgång — ingen behandling utförs ` +

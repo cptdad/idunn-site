@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { treatments } from "@/lib/treatments";
 import { validatePersonnummer } from "@/lib/personnummer";
 
@@ -23,12 +23,60 @@ export default function BookingForm() {
 
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
-  const [lookupMsg, setLookupMsg] = useState("");
   const [confirmedTime, setConfirmedTime] = useState("");
+
+  // Turnstile
+  const [siteKey, setSiteKey] = useState("");
+  const [token, setToken] = useState("");
+  const widgetRef = useRef<HTMLDivElement | null>(null);
+  const rendered = useRef(false);
 
   useEffect(() => {
     loadSlots();
+    fetch("/api/config")
+      .then((r) => r.json())
+      .then((cfg) => setSiteKey(cfg.turnstileSiteKey || ""))
+      .catch(() => setSiteKey(""));
   }, []);
+
+  useEffect(() => {
+    if (!siteKey) return;
+    const scriptId = "cf-turnstile-script";
+    const render = () => {
+      const w = window as any;
+      if (w.turnstile && widgetRef.current && !rendered.current) {
+        rendered.current = true;
+        w.turnstile.render(widgetRef.current, {
+          sitekey: siteKey,
+          callback: (t: string) => setToken(t),
+          "error-callback": () => setToken(""),
+          "expired-callback": () => setToken(""),
+        });
+      }
+    };
+    if (!document.getElementById(scriptId)) {
+      const s = document.createElement("script");
+      s.id = scriptId;
+      s.src =
+        "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      s.async = true;
+      s.defer = true;
+      s.onload = render;
+      document.head.appendChild(s);
+    } else {
+      render();
+    }
+  }, [siteKey]);
+
+  function resetTurnstile() {
+    const w = window as any;
+    if (siteKey && w.turnstile) {
+      try {
+        w.turnstile.reset();
+      } catch {}
+      setToken("");
+    }
+  }
 
   async function loadSlots() {
     setLoadingSlots(true);
@@ -44,32 +92,6 @@ export default function BookingForm() {
 
   const pnrCheck = pnr ? validatePersonnummer(pnr) : null;
 
-  async function hamtaUppgifter() {
-    setLookupMsg("");
-    const v = validatePersonnummer(pnr);
-    if (!v.valid) {
-      setLookupMsg(v.error || "Ogiltigt personnummer.");
-      return;
-    }
-    try {
-      const res = await fetch("/api/lookup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personnummer: pnr }),
-      });
-      const data = await res.json();
-      if (data.ok && data.namn) {
-        setNamn(data.namn);
-        if (data.adress) setAdress(data.adress);
-        setLookupMsg("Uppgifter hämtade.");
-      } else {
-        setLookupMsg(data.error || "Kunde inte hämta uppgifter — fyll i manuellt.");
-      }
-    } catch {
-      setLookupMsg("Kunde inte hämta uppgifter — fyll i manuellt.");
-    }
-  }
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
@@ -80,6 +102,10 @@ export default function BookingForm() {
     const v = validatePersonnummer(pnr);
     if (!v.valid) {
       setError(v.error || "Ogiltigt personnummer.");
+      return;
+    }
+    if (siteKey && !token) {
+      setError("Bekräfta att du inte är en robot.");
       return;
     }
     setStatus("sending");
@@ -97,12 +123,14 @@ export default function BookingForm() {
           omrade,
           meddelande,
           samtycke,
+          turnstileToken: token,
         }),
       });
       const data = await res.json();
       if (!res.ok || !data.ok) {
         setStatus("idle");
         setError(data.error || "Något gick fel. Försök igen.");
+        resetTurnstile();
         if (res.status === 409) {
           setSelected(null);
           loadSlots();
@@ -114,6 +142,7 @@ export default function BookingForm() {
     } catch {
       setStatus("idle");
       setError("Något gick fel. Försök igen.");
+      resetTurnstile();
     }
   }
 
@@ -179,26 +208,16 @@ export default function BookingForm() {
       {/* Personnummer */}
       <div className="mt-6">
         <label className="mb-2 block text-sm text-ink/80">Personnummer</label>
-        <div className="flex gap-2">
-          <input
-            value={pnr}
-            onChange={(e) => setPnr(e.target.value)}
-            required
-            placeholder="ÅÅÅÅMMDD-XXXX"
-            className="w-full rounded-lg border border-line bg-cream px-4 py-3 text-ink outline-none focus:border-gold"
-          />
-          <button
-            type="button"
-            onClick={hamtaUppgifter}
-            className="shrink-0 rounded-lg border border-gold px-4 py-3 text-sm text-ink hover:bg-gold hover:text-cream"
-          >
-            Hämta uppgifter
-          </button>
-        </div>
+        <input
+          value={pnr}
+          onChange={(e) => setPnr(e.target.value)}
+          required
+          placeholder="ÅÅÅÅMMDD-XXXX"
+          className="w-full rounded-lg border border-line bg-cream px-4 py-3 text-ink outline-none focus:border-gold"
+        />
         {pnr && pnrCheck && !pnrCheck.valid && (
           <p className="mt-1 text-xs text-sage-dark">{pnrCheck.error}</p>
         )}
-        {lookupMsg && <p className="mt-1 text-xs text-ink/60">{lookupMsg}</p>}
       </div>
 
       {/* Namn + adress */}
@@ -293,10 +312,13 @@ export default function BookingForm() {
         </span>
       </label>
 
+      {/* Turnstile (visas endast om konfigurerad) */}
+      {siteKey && <div ref={widgetRef} className="mt-5" />}
+
       <button
         type="submit"
         disabled={status === "sending"}
-        className="mt-7 w-full rounded-full bg-gold px-8 py-3.5 text-cream transition-colors hover:bg-gold-light disabled:opacity-60"
+        className="mt-6 w-full rounded-full bg-gold px-8 py-3.5 text-cream transition-colors hover:bg-gold-light disabled:opacity-60"
       >
         {status === "sending" ? "Bokar…" : "Boka tid"}
       </button>
