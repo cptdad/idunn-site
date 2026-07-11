@@ -292,16 +292,16 @@ export default function BookingForm() {
       {/* Beräknad mängd + pris */}
       {areas.length > 0 && (
         <div className="mt-4 rounded-lg border border-gold bg-cream p-3 text-center text-sm text-ink">
-          {tooLarge || !currentPrice ? (
+          {currentPrice != null ? (
             <span>
-              Beräknat: ca {quantity} {currentCat.unitPlural} — för den här
-              kombinationen lägger vi upp en plan vid en konsultation.
+              Beräknat: ca{" "}
+              <strong>{currentPrice.toLocaleString("sv-SE")} kr</strong> — för
+              den här kombinationen lägger vi upp en plan vid en konsultation.
             </span>
           ) : (
             <span>
-              Ca {quantity} {currentCat.unitPlural} · Pris:{" "}
-              <strong>{currentPrice.toLocaleString("sv-SE")} kr</strong> —
-              betalas vid bokning.
+              För den här kombinationen lägger vi upp en plan vid en
+              konsultation.
             </span>
           )}
         </div>

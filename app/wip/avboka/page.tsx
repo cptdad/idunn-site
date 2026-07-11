@@ -54,7 +54,13 @@ export default function Avboka() {
     const d = await r.json();
     setBusy(false);
     if (d.ok) {
-      setMsg("Din tid är avbokad.");
+      const txt =
+        d.refundFraction === 1
+          ? "Hela beloppet återbetalas till din betalning."
+          : d.refundFraction === 0.5
+          ? "50 % av beloppet återbetalas (avbokning senare än 24 timmar)."
+          : "";
+      setMsg(`Din tid är avbokad. ${txt}`.trim());
       setMode("done");
     } else setError(d.error || "Kunde inte avboka.");
   }

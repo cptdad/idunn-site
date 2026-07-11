@@ -75,6 +75,7 @@ export default function AdminPage() {
   }
 
   async function cancelBooking(id: number) {
+    if (!confirm("Avboka och återbetala hela beloppet till kunden?")) return;
     await fetch("/api/admin/bookings", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-password": password },
@@ -82,6 +83,16 @@ export default function AdminPage() {
     });
     await loadBookings();
     await refresh();
+  }
+
+  async function noShowBooking(id: number) {
+    if (!confirm("Markera som utebliven? 50 % återbetalas till kunden.")) return;
+    await fetch("/api/admin/bookings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": password },
+      body: JSON.stringify({ id, action: "noshow" }),
+    });
+    await loadBookings();
   }
 
   async function loadPrices() {
@@ -379,16 +390,20 @@ export default function AdminPage() {
             <div
               key={b.id}
               className={`rounded-xl border p-4 text-sm ${
-                b.status === "cancelled"
-                  ? "border-line bg-beige/40 text-ink/50"
-                  : "border-line bg-cream text-ink/80"
+                b.status === "active"
+                  ? "border-line bg-cream text-ink/80"
+                  : "border-line bg-beige/40 text-ink/50"
               }`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="font-medium text-ink">
                     {b.datum} kl. {b.tid} — {b.namn}
-                    {b.status === "cancelled" ? " (avbokad)" : ""}
+                    {b.status === "cancelled"
+                      ? " (avbokad)"
+                      : b.status === "noshow"
+                      ? " (utebliven)"
+                      : ""}
                   </p>
                   <p className="mt-1 text-xs text-ink/60">
                     {b.epost} · {b.telefon || "-"} · {b.omrade || "-"}
@@ -402,13 +417,21 @@ export default function AdminPage() {
                     </p>
                   ) : null}
                 </div>
-                {b.status !== "cancelled" && (
-                  <button
-                    onClick={() => cancelBooking(b.id)}
-                    className="shrink-0 rounded-full border border-line px-3 py-1.5 text-xs text-ink/60 hover:text-sage-dark"
-                  >
-                    Avboka
-                  </button>
+                {b.status === "active" && (
+                  <div className="flex shrink-0 flex-col gap-1">
+                    <button
+                      onClick={() => cancelBooking(b.id)}
+                      className="rounded-full border border-line px-3 py-1.5 text-xs text-ink/60 hover:text-sage-dark"
+                    >
+                      Avboka
+                    </button>
+                    <button
+                      onClick={() => noShowBooking(b.id)}
+                      className="rounded-full border border-line px-3 py-1.5 text-xs text-ink/60 hover:text-sage-dark"
+                    >
+                      Utebliven
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

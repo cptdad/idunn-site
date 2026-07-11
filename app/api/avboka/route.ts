@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { refundBooking, hoursUntil } from "@/lib/refunds";
 
 export const dynamic = "force-dynamic";
 
 async function getBooking(env: any, token: string) {
   return await env.DB.prepare(
-    "SELECT id, namn, datum, tid, status, slot_id FROM bookings WHERE token = ?"
+    "SELECT id, namn, datum, tid, status, slot_id, amount, stripe_payment_intent FROM bookings WHERE token = ?"
   )
     .bind(token)
     .first();
@@ -48,6 +49,9 @@ export async function POST(request: Request) {
     }
 
     if (action === "cancel") {
+      // >24h innan = full återbetalning, annars 50 % (kliniken behåller 50 %)
+      const fraction = hoursUntil(b.datum, b.tid) > 24 ? 1 : 0.5;
+      await refundBooking(env, b, fraction);
       await env.DB.prepare("UPDATE bookings SET status = 'cancelled' WHERE id = ?")
         .bind(b.id)
         .run();
@@ -56,7 +60,7 @@ export async function POST(request: Request) {
           .bind(b.slot_id)
           .run();
       }
-      return NextResponse.json({ ok: true, cancelled: true });
+      return NextResponse.json({ ok: true, cancelled: true, refundFraction: fraction });
     }
 
     if (action === "reschedule") {

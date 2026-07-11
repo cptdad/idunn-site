@@ -6,13 +6,19 @@ import { sendBookingConfirmation } from "@/lib/bookingEmails";
 
 export const dynamic = "force-dynamic";
 
-async function finalizeBooking(env: any, bookingId: string) {
+async function finalizeBooking(
+  env: any,
+  bookingId: string,
+  paymentIntent: string | null
+) {
   const b: any = await env.DB.prepare("SELECT * FROM bookings WHERE id = ?")
     .bind(bookingId)
     .first();
   if (!b || b.status !== "pending") return; // idempotent
-  await env.DB.prepare("UPDATE bookings SET status = 'active' WHERE id = ?")
-    .bind(bookingId)
+  await env.DB.prepare(
+    "UPDATE bookings SET status = 'active', stripe_payment_intent = ? WHERE id = ?"
+  )
+    .bind(paymentIntent, bookingId)
     .run();
   if (b.slot_id) {
     await env.DB.prepare("UPDATE slots SET status = 'booked' WHERE id = ?")
@@ -83,7 +89,11 @@ export async function POST(request: Request) {
       if (session.mode === "subscription" || session.metadata?.type === "membership") {
         await recordMembership(env, session);
       } else if (session.metadata?.bookingId) {
-        await finalizeBooking(env, session.metadata.bookingId);
+        const pi =
+          typeof session.payment_intent === "string"
+            ? session.payment_intent
+            : null;
+        await finalizeBooking(env, session.metadata.bookingId, pi);
       }
     } else if (event.type === "checkout.session.expired") {
       const session = event.data.object as Stripe.Checkout.Session;
