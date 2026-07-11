@@ -12,6 +12,7 @@ export default function BookingForm() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
+  const [selectedDate, setSelectedDate] = useState("");
 
   const [tiers, setTiers] = useState<Tiers>({});
   const [mlWeights, setMlWeights] = useState<Record<string, number>>({});
@@ -195,17 +196,17 @@ export default function BookingForm() {
     );
   }
 
-  const byDate: Record<string, Slot[]> = {};
-  for (const s of slots) {
-    (byDate[s.datum] ||= []).push(s);
-  }
+  const dates = Array.from(new Set(slots.map((s) => s.datum))).sort();
+  const timesForDate = slots
+    .filter((s) => s.datum === selectedDate)
+    .sort((a, b) => a.tid.localeCompare(b.tid));
 
   return (
     <form onSubmit={onSubmit} className="rounded-2xl border border-line bg-cream p-8">
       {/* Tidsval */}
       <div>
         <label className="mb-2 block text-sm font-medium text-ink">
-          Välj en tid
+          Välj datum och tid
         </label>
         {loadingSlots ? (
           <p className="text-sm text-ink/60">Hämtar lediga tider…</p>
@@ -214,30 +215,37 @@ export default function BookingForm() {
             Inga lediga tider just nu. Hör gärna av dig via kontaktsidan.
           </p>
         ) : (
-          <div className="space-y-4">
-            {Object.entries(byDate).map(([d, list]) => (
-              <div key={d}>
-                <p className="mb-2 text-xs uppercase tracking-wide text-ink/50">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <select
+              value={selectedDate}
+              onChange={(e) => {
+                setSelectedDate(e.target.value);
+                setSelected(null);
+              }}
+              className="w-full rounded-lg border border-line bg-cream px-4 py-3 text-ink outline-none focus:border-gold"
+            >
+              <option value="">Välj datum</option>
+              {dates.map((d) => (
+                <option key={d} value={d}>
                   {d}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {list.map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      onClick={() => setSelected(s.id)}
-                      className={`rounded-full border px-4 py-2 text-sm transition-colors ${
-                        selected === s.id
-                          ? "border-gold bg-gold text-cream"
-                          : "border-line text-ink hover:border-gold"
-                      }`}
-                    >
-                      {s.tid}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+                </option>
+              ))}
+            </select>
+            <select
+              value={selected ?? ""}
+              onChange={(e) =>
+                setSelected(e.target.value ? Number(e.target.value) : null)
+              }
+              disabled={!selectedDate}
+              className="w-full rounded-lg border border-line bg-cream px-4 py-3 text-ink outline-none focus:border-gold disabled:opacity-50"
+            >
+              <option value="">Välj tid</option>
+              {timesForDate.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.tid}
+                </option>
+              ))}
+            </select>
           </div>
         )}
       </div>
