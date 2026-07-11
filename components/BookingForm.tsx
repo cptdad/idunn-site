@@ -1,24 +1,28 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { treatments } from "@/lib/treatments";
+import { categories } from "@/lib/treatments";
 import { validatePersonnummer } from "@/lib/personnummer";
 
 type Slot = { id: number; datum: string; tid: string };
 type Status = "idle" | "sending" | "ok" | "error";
+type Tiers = Record<string, Record<number, number>>;
 
 export default function BookingForm() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
-  const [prices, setPrices] = useState<Record<string, number>>({});
+
+  const [tiers, setTiers] = useState<Tiers>({});
+  const [category, setCategory] = useState<string>(categories[0]?.key || "fillers");
+  const [quantity, setQuantity] = useState<number>(1);
+  const [areas, setAreas] = useState<string[]>([]);
 
   const [pnr, setPnr] = useState("");
   const [namn, setNamn] = useState("");
   const [adress, setAdress] = useState("");
   const [epost, setEpost] = useState("");
   const [telefon, setTelefon] = useState("");
-  const [omrade, setOmrade] = useState(treatments[0]?.title || "");
   const [meddelande, setMeddelande] = useState("");
   const [samtycke, setSamtycke] = useState(false);
 
@@ -40,8 +44,8 @@ export default function BookingForm() {
       .catch(() => setSiteKey(""));
     fetch("/api/prices")
       .then((r) => r.json())
-      .then((d) => setPrices(d.prices || {}))
-      .catch(() => setPrices({}));
+      .then((d) => setTiers(d.tiers || {}))
+      .catch(() => setTiers({}));
   }, []);
 
   useEffect(() => {
@@ -95,7 +99,15 @@ export default function BookingForm() {
     setLoadingSlots(false);
   }
 
+  const currentCat = categories.find((c) => c.key === category)!;
+  const currentPrice = tiers[category]?.[quantity];
   const pnrCheck = pnr ? validatePersonnummer(pnr) : null;
+
+  function toggleArea(a: string) {
+    setAreas((prev) =>
+      prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]
+    );
+  }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -125,7 +137,9 @@ export default function BookingForm() {
           adress,
           epost,
           telefon,
-          omrade,
+          category,
+          quantity,
+          areas,
           meddelande,
           samtycke,
           turnstileToken: token,
@@ -172,10 +186,6 @@ export default function BookingForm() {
     (byDate[s.datum] ||= []).push(s);
   }
 
-  const slugByTitle: Record<string, string> = {};
-  for (const t of treatments) slugByTitle[t.title] = t.slug;
-  const currentPrice = prices[slugByTitle[omrade]];
-
   return (
     <form onSubmit={onSubmit} className="rounded-2xl border border-line bg-cream p-8">
       {/* Tidsval */}
@@ -217,6 +227,81 @@ export default function BookingForm() {
           </div>
         )}
       </div>
+
+      {/* Behandlingskategori */}
+      <div className="mt-6">
+        <label className="mb-2 block text-sm font-medium text-ink">Behandling</label>
+        <div className="flex gap-2">
+          {categories.map((c) => (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => {
+                setCategory(c.key);
+                setAreas([]);
+              }}
+              className={`flex-1 rounded-lg border px-4 py-2.5 text-sm transition-colors ${
+                category === c.key
+                  ? "border-gold bg-gold text-cream"
+                  : "border-line text-ink hover:border-gold"
+              }`}
+            >
+              {c.title}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Antal (ml / områden) */}
+      <div className="mt-5">
+        <label className="mb-2 block text-sm text-ink/80">
+          Antal {currentCat.unitPlural}
+        </label>
+        <select
+          value={quantity}
+          onChange={(e) => setQuantity(Number(e.target.value))}
+          className="w-full rounded-lg border border-line bg-cream px-4 py-3 text-ink outline-none focus:border-gold"
+        >
+          {[1, 2, 3, 4].map((q) => (
+            <option key={q} value={q}>
+              {q} {currentCat.unitPlural}
+              {tiers[category]?.[q] != null
+                ? ` — ${tiers[category][q].toLocaleString("sv-SE")} kr`
+                : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Områden (informativt) */}
+      <div className="mt-5">
+        <label className="mb-2 block text-sm text-ink/80">
+          Områden (välj de som är aktuella)
+        </label>
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {currentCat.areas.map((a) => (
+            <label
+              key={a}
+              className="flex items-start gap-2 text-sm text-ink/75"
+            >
+              <input
+                type="checkbox"
+                checked={areas.includes(a)}
+                onChange={() => toggleArea(a)}
+                className="mt-1 h-4 w-4 accent-gold"
+              />
+              <span>{a}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {currentPrice != null && (
+        <div className="mt-4 rounded-lg border border-gold bg-cream p-3 text-center text-sm text-ink">
+          Pris: <strong>{currentPrice.toLocaleString("sv-SE")} kr</strong> —
+          betalas vid bokning.
+        </div>
+      )}
 
       {/* Personnummer */}
       <div className="mt-6">
@@ -274,28 +359,6 @@ export default function BookingForm() {
       </div>
 
       <div className="mt-5">
-        <label className="mb-2 block text-sm text-ink/80">Behandlingsområde</label>
-        <select
-          value={omrade}
-          onChange={(e) => setOmrade(e.target.value)}
-          className="w-full rounded-lg border border-line bg-cream px-4 py-3 text-ink outline-none focus:border-gold"
-        >
-          {treatments.map((t) => (
-            <option key={t.slug} value={t.title}>
-              {t.title}
-            </option>
-          ))}
-        </select>
-        {currentPrice != null && (
-          <p className="mt-2 text-sm text-ink/70">
-            {currentPrice > 0
-              ? `Pris: ${currentPrice.toLocaleString("sv-SE")} kr — betalas vid bokning.`
-              : "Kostnadsfri konsultation."}
-          </p>
-        )}
-      </div>
-
-      <div className="mt-5">
         <label className="mb-2 block text-sm text-ink/80">
           Meddelande (valfritt)
         </label>
@@ -332,7 +395,6 @@ export default function BookingForm() {
         </span>
       </label>
 
-      {/* Turnstile (visas endast om konfigurerad) */}
       {siteKey && <div ref={widgetRef} className="mt-5" />}
 
       <button
@@ -340,7 +402,7 @@ export default function BookingForm() {
         disabled={status === "sending"}
         className="mt-6 w-full rounded-full bg-gold px-8 py-3.5 text-cream transition-colors hover:bg-gold-light disabled:opacity-60"
       >
-        {status === "sending" ? "Bokar…" : "Boka tid"}
+        {status === "sending" ? "Bokar…" : "Boka & betala"}
       </button>
 
       {error && (

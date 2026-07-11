@@ -2,7 +2,7 @@ import Link from "next/link";
 import Container from "@/components/Container";
 import Button from "@/components/Button";
 import AppleBranch from "@/components/AppleBranch";
-import { treatments } from "@/lib/treatments";
+import { categories } from "@/lib/treatments";
 import { basePath } from "@/lib/site";
 
 export default function Home() {
@@ -93,17 +93,17 @@ export default function Home() {
             </h2>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
-            {treatments.map((t) => (
+            {categories.map((c) => (
               <Link
-                key={t.slug}
+                key={c.key}
                 href="/wip/behandlingar"
                 className="group rounded-2xl border border-line bg-cream p-7 transition-colors hover:border-gold"
               >
                 <h3 className="font-serif text-xl text-ink group-hover:text-gold">
-                  {t.title}
+                  {c.title}
                 </h3>
                 <p className="mt-3 text-sm leading-relaxed text-ink/70">
-                  {t.summary}
+                  {c.intro}
                 </p>
               </Link>
             ))}

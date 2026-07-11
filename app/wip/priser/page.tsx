@@ -1,21 +1,22 @@
-import type { Metadata } from "next";
+"use client";
+
+import { useEffect, useState } from "react";
 import Container from "@/components/Container";
 import Button from "@/components/Button";
+import { categories } from "@/lib/treatments";
 
-export const metadata: Metadata = {
-  title: "Priser",
-  description:
-    "Transparent prisbild hos Iðunn Estetik. Slutligt pris bestäms alltid individuellt vid konsultation.",
-};
-
-const rows = [
-  { name: "Konsultation", price: "Kostnadsfri / avräknas" },
-  { name: "Rynkbehandling, ett område", price: "Prisuppgift vid konsultation" },
-  { name: "Harmonisering med fillers", price: "Prisuppgift vid konsultation" },
-  { name: "Hudvårdande behandling", price: "Prisuppgift vid konsultation" },
-];
+type Tiers = Record<string, Record<number, number>>;
 
 export default function Priser() {
+  const [tiers, setTiers] = useState<Tiers>({});
+
+  useEffect(() => {
+    fetch("/api/prices")
+      .then((r) => r.json())
+      .then((d) => setTiers(d.tiers || {}))
+      .catch(() => setTiers({}));
+  }, []);
+
   return (
     <Container className="py-20">
       <div className="mx-auto max-w-2xl text-center">
@@ -24,33 +25,51 @@ export default function Priser() {
         </p>
         <h1 className="font-serif text-4xl text-ink md:text-5xl">Prislista</h1>
         <p className="mt-5 text-lg text-ink/75">
-          Vi tror på transparens. Eftersom varje behandling bedöms individuellt
-          bekräftas slutligt pris alltid vid din konsultation, innan något
-          utförs.
+          Fillers debiteras per milliliter och toxin per behandlat område.
+          Slutligt upplägg bekräftas alltid vid din konsultation.
         </p>
       </div>
 
-      <div className="mt-12 overflow-hidden rounded-2xl border border-line">
-        {rows.map((r, i) => (
-          <div
-            key={r.name}
-            className={`flex items-center justify-between px-6 py-5 ${
-              i % 2 === 0 ? "bg-cream" : "bg-beige/40"
-            }`}
-          >
-            <span className="text-ink">{r.name}</span>
-            <span className="text-sm text-ink/70">{r.price}</span>
-          </div>
-        ))}
+      <div className="mt-12 grid gap-6 md:grid-cols-2">
+        {categories.map((c) => {
+          const rows = tiers[c.key] || {};
+          return (
+            <div
+              key={c.key}
+              className="overflow-hidden rounded-2xl border border-line"
+            >
+              <div className="border-b border-line bg-beige/40 px-6 py-4">
+                <h2 className="font-serif text-xl text-ink">{c.title}</h2>
+                <p className="text-xs text-ink/50">Pris per {c.unit}</p>
+              </div>
+              {[1, 2, 3, 4].map((q, i) => (
+                <div
+                  key={q}
+                  className={`flex items-center justify-between px-6 py-4 ${
+                    i % 2 === 0 ? "bg-cream" : "bg-beige/20"
+                  }`}
+                >
+                  <span className="text-ink">
+                    {q} {c.unitPlural}
+                  </span>
+                  <span className="text-sm text-ink/70">
+                    {rows[q] != null
+                      ? `${rows[q].toLocaleString("sv-SE")} kr`
+                      : "–"}
+                  </span>
+                </div>
+              ))}
+            </div>
+          );
+        })}
       </div>
 
-      <p className="mt-6 text-center text-sm text-ink/60">
-        Prisuppgifter fylls i när klinikens tjänster fastställts. Denna sida är
-        en mall.
+      <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-ink/60">
+        Fler områden eller större mängd? Det tar vi vid konsultationen.
       </p>
 
       <div className="mt-10 text-center">
-        <Button href="/wip/boka">Boka konsultation</Button>
+        <Button href="/wip/boka">Boka tid</Button>
       </div>
     </Container>
   );

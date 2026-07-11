@@ -4,7 +4,7 @@ import { validatePersonnummer } from "@/lib/personnummer";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { getStripe } from "@/lib/stripe";
 import { sendBookingConfirmation } from "@/lib/bookingEmails";
-import { treatments } from "@/lib/treatments";
+import { categoryByKey } from "@/lib/treatments";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +29,9 @@ export async function POST(request: Request) {
       adress,
       epost,
       telefon,
-      omrade,
+      category,
+      quantity,
+      areas,
       meddelande,
       samtycke,
       turnstileToken,
@@ -79,15 +81,27 @@ export async function POST(request: Request) {
       );
     }
 
-    // Pris för valt behandlingsområde
-    const slug = treatments.find((t) => t.title === omrade)?.slug;
+    // Pris från tiered prislista (fillers per ml / toxin per område)
+    const cat = categoryByKey(category);
+    const qty = Math.round(Number(quantity));
     let price = 0;
-    if (slug) {
-      const prow: any = await env.DB.prepare("SELECT amount FROM prices WHERE slug = ?")
-        .bind(slug)
+    if (cat && qty >= 1) {
+      const prow: any = await env.DB.prepare(
+        "SELECT amount FROM pricing_tiers WHERE category = ? AND quantity = ?"
+      )
+        .bind(category, qty)
         .first();
       price = prow?.amount ?? 0;
     }
+    if (!cat || price <= 0) {
+      return NextResponse.json(
+        { ok: false, error: "Ogiltig behandling eller mängd." },
+        { status: 400 }
+      );
+    }
+    const omrade = `${cat.title}: ${
+      (Array.isArray(areas) ? areas : []).join(", ") || "–"
+    } (${qty} ${cat.unitPlural})`;
 
     // Uppslag (om konfigurerat)
     let finalNamn = namn;

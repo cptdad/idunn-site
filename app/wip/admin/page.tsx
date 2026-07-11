@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Container from "@/components/Container";
-import { treatments } from "@/lib/treatments";
+import { categories } from "@/lib/treatments";
 
 type Slot = { id: number; datum: string; tid: string; status: string };
 
@@ -11,7 +11,7 @@ export default function AdminPage() {
   const [unlocked, setUnlocked] = useState(false);
   const [slots, setSlots] = useState<Slot[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
-  const [prices, setPrices] = useState<Record<string, number>>({});
+  const [tiers, setTiers] = useState<Record<string, Record<number, number>>>({});
   const [memberships, setMemberships] = useState<any[]>([]);
   const [memEmail, setMemEmail] = useState("");
   const [memNamn, setMemNamn] = useState("");
@@ -88,18 +88,31 @@ export default function AdminPage() {
     });
     if (res.ok) {
       const d = await res.json();
-      setPrices(d.prices || {});
+      setTiers(d.tiers || {});
     }
+  }
+
+  function setTier(category: string, q: number, amount: number) {
+    setTiers((prev) => ({
+      ...prev,
+      [category]: { ...(prev[category] || {}), [q]: amount },
+    }));
   }
 
   async function savePrices() {
     setBusy(true);
-    for (const t of treatments) {
-      await fetch("/api/admin/prices", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-password": password },
-        body: JSON.stringify({ slug: t.slug, amount: prices[t.slug] ?? 0 }),
-      });
+    for (const c of categories) {
+      for (const q of [1, 2, 3, 4]) {
+        await fetch("/api/admin/prices", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-admin-password": password },
+          body: JSON.stringify({
+            category: c.key,
+            quantity: q,
+            amount: tiers[c.key]?.[q] ?? 0,
+          }),
+        });
+      }
     }
     await loadPrices();
     setBusy(false);
@@ -376,31 +389,43 @@ export default function AdminPage() {
       <div className="mt-16">
         <h2 className="font-serif text-xl text-ink">Priser</h2>
         <p className="mt-1 text-xs text-ink/50">
-          Pris per behandlingsområde (kr). 0 = kostnadsfri (bokas utan betalning).
+          Fillers per ml, toxin per område (kr).
         </p>
-        <div className="mt-4 max-w-md space-y-3">
-          {treatments.map((t) => (
-            <div key={t.slug} className="flex items-center justify-between gap-4">
-              <span className="text-sm text-ink/80">{t.title}</span>
-              <input
-                type="number"
-                min={0}
-                value={prices[t.slug] ?? 0}
-                onChange={(e) =>
-                  setPrices({ ...prices, [t.slug]: Number(e.target.value) })
-                }
-                className="w-32 rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
-              />
+        <div className="mt-4 grid gap-8 md:grid-cols-2">
+          {categories.map((c) => (
+            <div key={c.key}>
+              <p className="mb-2 text-sm font-medium text-ink">
+                {c.title} — pris per {c.unit}
+              </p>
+              <div className="space-y-2">
+                {[1, 2, 3, 4].map((q) => (
+                  <div
+                    key={q}
+                    className="flex items-center justify-between gap-4"
+                  >
+                    <span className="text-sm text-ink/70">
+                      {q} {c.unitPlural}
+                    </span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={tiers[c.key]?.[q] ?? 0}
+                      onChange={(e) => setTier(c.key, q, Number(e.target.value))}
+                      className="w-32 rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           ))}
-          <button
-            onClick={savePrices}
-            disabled={busy}
-            className="mt-2 rounded-full bg-gold px-6 py-2.5 text-sm text-cream hover:bg-gold-light disabled:opacity-60"
-          >
-            Spara priser
-          </button>
         </div>
+        <button
+          onClick={savePrices}
+          disabled={busy}
+          className="mt-5 rounded-full bg-gold px-6 py-2.5 text-sm text-cream hover:bg-gold-light disabled:opacity-60"
+        >
+          Spara priser
+        </button>
       </div>
       {/* Medlemskap */}
       <div className="mt-16">

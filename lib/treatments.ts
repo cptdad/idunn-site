@@ -1,60 +1,60 @@
-export type Treatment = {
-  slug: string;
+// Behandlingsutbud: två kategorier med områden.
+// Fillers prissätts per ml, Toxin per behandlat område (se pricing_tiers i DB).
+
+export type Category = {
+  key: "fillers" | "toxin";
   title: string;
-  summary: string;
-  about: string;
-  suitableFor: string;
+  unit: string; // singular, t.ex. "ml" eller "område"
+  unitPlural: string; // plural, t.ex. "ml" eller "områden"
+  intro: string;
+  areas: string[];
   risks: string;
 };
 
-// OBS: Vi marknadsför inte receptbelagda läkemedel (t.ex. botulinumtoxin) mot
-// allmänheten. Vi beskriver behandlingsområden sakligt och inkluderar
-// riskinformation. Detta är ett medvetet juridiskt val (se webbplanen).
-export const treatments: Treatment[] = [
+export const categories: Category[] = [
   {
-    slug: "rynkbehandling",
-    title: "Rynkbehandling i övre ansiktet",
-    summary:
-      "Mjukar upp uttrycksrynkor i panna, mellan ögonbrynen och kring ögonen för ett vilat intryck.",
-    about:
-      "En bedömning görs alltid individuellt. Målet är ett naturligt resultat där dina uttryck bevaras — inte ett fryst ansikte.",
-    suitableFor:
-      "Du som vill dämpa uttrycksrynkor diskret och behålla ett naturligt ansiktsuttryck.",
+    key: "fillers",
+    title: "Fillers",
+    unit: "ml",
+    unitPlural: "ml",
+    intro:
+      "Subtil återuppbyggnad av volym och kontur där tid eller genetik gett ett tröttare intryck. Debiteras per milliliter.",
+    areas: [
+      "Läppar",
+      "Kindben",
+      "Nasolabialveck",
+      "Marionettlinjer",
+      "Käklinje",
+      "Haka",
+      "Tear troughs (mörka ringar under ögonen)",
+    ],
+    risks:
+      "Vanliga, oftast övergående biverkningar kan vara svullnad, rodnad, ömhet och blåmärke. Ovanliga men allvarligare komplikationer finns. Fullständig riskinformation ges vid konsultationen, och behandling sker endast om det bedöms lämpligt.",
+  },
+  {
+    key: "toxin",
+    title: "Toxin",
+    unit: "område",
+    unitPlural: "områden",
+    intro:
+      "Muskelavslappnande behandling som mjukar upp uttrycksrynkor och kan finjustera proportioner. Debiteras per behandlat område.",
+    areas: [
+      "Glabella (”arg-rynkan” mellan ögonbrynen)",
+      "Sura mungipor (marionettlinjer)",
+      "Nästox (avsmalning eller uppnäsa)",
+      "Panna och lätt ögonbrynslyft",
+      "Apelsinhaka och spända hakmuskler",
+      "Käkförminskning",
+      "Lipflip (form på överläppen)",
+      "Traptox / Barbietox",
+      "Nefertiti-halslyft",
+      "Vader (smalare intryck)",
+    ],
     risks:
       "Vanliga, oftast övergående biverkningar kan vara rodnad, svullnad, blåmärke eller huvudvärk. Mer ovanliga reaktioner förekommer. Du får fullständig information vid konsultationen och behandlas endast om det bedöms lämpligt.",
   },
-  {
-    slug: "harmonisering",
-    title: "Harmonisering med fillers",
-    summary:
-      "Subtil återuppbyggnad av volym och kontur där tid eller genetik gett ett tröttare intryck.",
-    about:
-      "Vi arbetar återhållsamt och långsiktigt. Ibland är rätt råd att avvakta eller att göra mindre än du tänkt — det säger vi i så fall.",
-    suitableFor:
-      "Du som söker en diskret förbättring med bibehållet naturligt uttryck.",
-    risks:
-      "Vanliga, oftast övergående biverkningar kan vara svullnad, rodnad, ömhet och blåmärke. Ovanliga men allvarligare komplikationer finns. Fullständig riskinformation ges vid konsultationen.",
-  },
-  {
-    slug: "hudvard",
-    title: "Hudvårdande behandlingar",
-    summary:
-      "Behandlingar som stärker hudkvalitet och lyster som del av ett långsiktigt underhåll.",
-    about:
-      "Hudens kvalitet är grunden. Vi ser behandling som underhåll över tid snarare än enstaka stora ingrepp.",
-    suitableFor: "Du som vill vårda hudens kvalitet och lyster över tid.",
-    risks:
-      "Övergående rodnad och känslighet kan förekomma. Lämplighet bedöms individuellt vid konsultationen.",
-  },
-  {
-    slug: "konsultation",
-    title: "Konsultation",
-    summary:
-      "Alltid första steget. En lugn genomgång av dina önskemål, förutsättningar och realistiska resultat.",
-    about:
-      "Första besöket är en konsultation, inte en garanterad behandling. Ibland är vårt bästa råd att inte behandla alls.",
-    suitableFor: "Alla som funderar. Utan förpliktelse.",
-    risks:
-      "Ingen behandling utförs utan att du fått fullständig information om nytta, alternativ och risker.",
-  },
 ];
+
+export function categoryByKey(key: string): Category | undefined {
+  return categories.find((c) => c.key === key);
+}
