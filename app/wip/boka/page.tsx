@@ -23,8 +23,9 @@ export default function Boka() {
             Välj en ledig tid nedan (varje tid är 30 minuter).
           </p>
           <p className="mt-3 text-sm text-ink/70">
-            Om detta är din första behandling blir du uppringd minst 48 timmar
-            innan för en kostnadsfri konsultation.
+            Om detta är din första behandling hos oss för ett nytt område, eller
+            om du inte haft någon behandling de senaste sex månaderna, blir du
+            uppringd minst 48 timmar innan för en gratis konsultation.
           </p>
           <ul className="mt-8 space-y-3 text-sm text-ink/75">
             <li>• Legitimerad sjuksköterska</li>
