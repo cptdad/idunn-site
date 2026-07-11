@@ -12,6 +12,11 @@ export default function AdminPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [prices, setPrices] = useState<Record<string, number>>({});
+  const [memberships, setMemberships] = useState<any[]>([]);
+  const [memEmail, setMemEmail] = useState("");
+  const [memNamn, setMemNamn] = useState("");
+  const [memAmount, setMemAmount] = useState("");
+  const [memLink, setMemLink] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -48,6 +53,7 @@ export default function AdminPage() {
     setUnlocked(true);
     loadBookings();
     loadPrices();
+    loadMemberships();
   }
 
   async function refresh() {
@@ -96,6 +102,53 @@ export default function AdminPage() {
       });
     }
     await loadPrices();
+    setBusy(false);
+  }
+
+  async function loadMemberships() {
+    const res = await fetch("/api/admin/memberships", {
+      headers: { "x-admin-password": password },
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setMemberships(d.memberships || []);
+    }
+  }
+
+  async function createMembership(e: React.FormEvent) {
+    e.preventDefault();
+    if (!memEmail || !memAmount) return;
+    setBusy(true);
+    setMemLink("");
+    const res = await fetch("/api/admin/membership", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": password },
+      body: JSON.stringify({
+        email: memEmail,
+        namn: memNamn,
+        amount: Number(memAmount),
+      }),
+    });
+    const d = await res.json();
+    setBusy(false);
+    if (d.ok) {
+      setMemLink(d.url);
+      setMemEmail("");
+      setMemNamn("");
+      setMemAmount("");
+    } else {
+      alert(d.error || "Kunde inte skapa länk.");
+    }
+  }
+
+  async function cancelMembership(id: number) {
+    setBusy(true);
+    await fetch("/api/admin/memberships", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": password },
+      body: JSON.stringify({ id, action: "cancel" }),
+    });
+    await loadMemberships();
     setBusy(false);
   }
 
@@ -347,6 +400,86 @@ export default function AdminPage() {
           >
             Spara priser
           </button>
+        </div>
+      </div>
+      {/* Medlemskap */}
+      <div className="mt-16">
+        <h2 className="font-serif text-xl text-ink">Medlemskap</h2>
+        <p className="mt-1 text-xs text-ink/50">
+          Skapa en betallänk med individuellt månadsbelopp. Kunden anger kort och
+          Stripe drar månadsvis automatiskt.
+        </p>
+
+        <form
+          onSubmit={createMembership}
+          className="mt-4 max-w-md rounded-2xl border border-line bg-cream p-6"
+        >
+          <label className="block text-sm text-ink/80">Kundens e-post</label>
+          <input
+            type="email"
+            value={memEmail}
+            onChange={(e) => setMemEmail(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
+          />
+          <label className="mt-3 block text-sm text-ink/80">Namn (valfritt)</label>
+          <input
+            value={memNamn}
+            onChange={(e) => setMemNamn(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
+          />
+          <label className="mt-3 block text-sm text-ink/80">
+            Månadsbelopp (kr)
+          </label>
+          <input
+            type="number"
+            min={1}
+            value={memAmount}
+            onChange={(e) => setMemAmount(e.target.value)}
+            className="mt-1 w-full rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
+          />
+          <button
+            type="submit"
+            disabled={busy}
+            className="mt-5 rounded-full bg-gold px-6 py-2.5 text-sm text-cream hover:bg-gold-light disabled:opacity-60"
+          >
+            Skapa medlemskapslänk
+          </button>
+        </form>
+
+        {memLink && (
+          <div className="mt-4 max-w-md rounded-lg border border-gold bg-cream p-4 text-sm">
+            <p className="text-ink/70">Skicka den här länken till kunden:</p>
+            <a href={memLink} className="mt-1 block break-all text-gold underline">
+              {memLink}
+            </a>
+          </div>
+        )}
+
+        <div className="mt-6 space-y-2">
+          {memberships.map((m) => (
+            <div
+              key={m.id}
+              className={`flex items-center justify-between gap-4 rounded-xl border p-3 text-sm ${
+                m.status === "cancelled"
+                  ? "border-line bg-beige/40 text-ink/50"
+                  : "border-line bg-cream text-ink/80"
+              }`}
+            >
+              <span>
+                {m.email}
+                {m.namn ? ` (${m.namn})` : ""} — {m.amount} kr/mån
+                {m.status === "cancelled" ? " (avslutad)" : ""}
+              </span>
+              {m.status !== "cancelled" && (
+                <button
+                  onClick={() => cancelMembership(m.id)}
+                  className="shrink-0 rounded-full border border-line px-3 py-1.5 text-xs text-ink/60 hover:text-sage-dark"
+                >
+                  Avsluta
+                </button>
+              )}
+            </div>
+          ))}
         </div>
       </div>
     </Container>

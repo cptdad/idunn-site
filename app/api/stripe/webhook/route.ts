@@ -41,6 +41,22 @@ async function releaseBooking(env: any, bookingId: string) {
   }
 }
 
+async function recordMembership(env: any, session: Stripe.Checkout.Session) {
+  const email = session.customer_email || (session.metadata?.email ?? "");
+  const namn = session.metadata?.namn || null;
+  const amount = Number(session.metadata?.amount || 0);
+  const customerId =
+    typeof session.customer === "string" ? session.customer : null;
+  const subscriptionId =
+    typeof session.subscription === "string" ? session.subscription : null;
+  if (!subscriptionId || !email) return;
+  await env.DB.prepare(
+    "INSERT INTO memberships (namn, email, amount, stripe_customer_id, stripe_subscription_id, status) VALUES (?, ?, ?, ?, ?, 'active') ON CONFLICT(stripe_subscription_id) DO UPDATE SET status = 'active'"
+  )
+    .bind(namn, email, amount, customerId, subscriptionId)
+    .run();
+}
+
 export async function POST(request: Request) {
   const env = getCloudflareContext().env as any;
   const stripe = getStripe(env);
@@ -64,12 +80,23 @@ export async function POST(request: Request) {
   try {
     if (event.type === "checkout.session.completed") {
       const session = event.data.object as Stripe.Checkout.Session;
-      const bookingId = session.metadata?.bookingId;
-      if (bookingId) await finalizeBooking(env, bookingId);
+      if (session.mode === "subscription" || session.metadata?.type === "membership") {
+        await recordMembership(env, session);
+      } else if (session.metadata?.bookingId) {
+        await finalizeBooking(env, session.metadata.bookingId);
+      }
     } else if (event.type === "checkout.session.expired") {
       const session = event.data.object as Stripe.Checkout.Session;
-      const bookingId = session.metadata?.bookingId;
-      if (bookingId) await releaseBooking(env, bookingId);
+      if (session.metadata?.bookingId) {
+        await releaseBooking(env, session.metadata.bookingId);
+      }
+    } else if (event.type === "customer.subscription.deleted") {
+      const sub = event.data.object as Stripe.Subscription;
+      await env.DB.prepare(
+        "UPDATE memberships SET status = 'cancelled' WHERE stripe_subscription_id = ?"
+      )
+        .bind(sub.id)
+        .run();
     }
   } catch (e) {
     console.error("Fel vid hantering av webhook:", e);
