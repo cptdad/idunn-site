@@ -31,6 +31,36 @@ async function sendEmail(
   return res.ok;
 }
 
+// Behandlingsspecifik information till bekräftelsemejlet.
+function careBlock(omrade: string): string {
+  const isFiller = (omrade || "").toLowerCase().startsWith("fillers");
+  if (isFiller) {
+    return (
+      `ATT TÄNKA PÅ INFÖR DIN FILLERSBEHANDLING\n` +
+      `• Undvik blodförtunnande läkemedel (t.ex. Treo/acetylsalicylsyra, ibuprofen), fiskolja och omega-3 cirka en vecka innan om möjligt – minskar risken för blåmärken.\n` +
+      `• Undvik alkohol de 24 timmarna innan.\n` +
+      `• Planera inte behandlingen precis inför ett viktigt tillfälle – svullnad och blåmärken kan förekomma.\n` +
+      `• Meddela oss vid graviditet/amning, pågående infektion eller feberblåsor.\n\n` +
+      `ATT TÄNKA PÅ EFTER DIN FILLERSBEHANDLING\n` +
+      `• Rör eller massera inte det behandlade området det första dygnet.\n` +
+      `• Undvik hård träning, bastu, solarium och stark värme i 24–48 timmar.\n` +
+      `• Undvik alkohol och smink på området det första dygnet.\n` +
+      `• Svullnad, rodnad och blåmärken kan förekomma och avtar oftast inom några dagar.\n` +
+      `• Kontakta oss omgående vid kraftig smärta, blekhet/missfärgning eller andra ovanliga besvär.`
+    );
+  }
+  return (
+    `ATT TÄNKA PÅ INFÖR DIN RYNKBEHANDLING\n` +
+    `• Undvik blodförtunnande läkemedel, alkohol och omega-3 innan – minskar risken för blåmärken.\n` +
+    `• Meddela oss vid graviditet/amning, neuromuskulär sjukdom eller mediciner du tar.\n\n` +
+    `ATT TÄNKA PÅ EFTER DIN RYNKBEHANDLING\n` +
+    `• Massera eller tryck inte på området, och undvik att ligga ner, de första 4 timmarna.\n` +
+    `• Undvik hård träning, bastu och solarium det första dygnet.\n` +
+    `• Effekten kommer gradvis under cirka 3–14 dagar.\n` +
+    `• Undvik ansiktsbehandlingar och massage i området den första veckan.`
+  );
+}
+
 export async function sendBookingConfirmation(env: any, b: Booking) {
   const apiKey = env.RESEND_API_KEY;
   if (!apiKey) return;
@@ -75,6 +105,9 @@ export async function sendBookingConfirmation(env: any, b: Booking) {
       `Behöver du av- eller omboka? Använd din länk:\n${link}\n\n` +
       `Avbokning senare än 24 timmar före besöket debiteras med 50 % av ` +
       `behandlingens pris.\n\n` +
+      `— — —\n\n` +
+      `${careBlock(b.omrade || "")}\n\n` +
+      `— — —\n\n` +
       `Vänliga hälsningar,\n` +
       `Iðunn Estetik Stockholm`,
   });
