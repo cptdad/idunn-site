@@ -173,7 +173,7 @@ export async function POST(request: Request) {
         metadata: { bookingId: String(bookingId) },
         success_url: `${base}/boka/klar?token=${token}`,
         cancel_url: `${base}/boka`,
-        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+        expires_at: Math.floor(Date.now() / 1000) + 40 * 60,
       });
       return NextResponse.json({ ok: true, checkoutUrl: session.url });
     } catch (e) {
