@@ -4,7 +4,7 @@ import { validatePersonnummer } from "@/lib/personnummer";
 import { verifyTurnstile } from "@/lib/turnstile";
 import { getStripe } from "@/lib/stripe";
 import { sendBookingConfirmation } from "@/lib/bookingEmails";
-import { categoryByKey, computeQuantity } from "@/lib/treatments";
+import { categoryByKey, computeQuantity, estimatedMinutes } from "@/lib/treatments";
 
 export const dynamic = "force-dynamic";
 
@@ -108,6 +108,25 @@ export async function POST(request: Request) {
     const omrade = `${cat.title}: ${
       (Array.isArray(areas) ? areas : []).join(", ") || "–"
     } (${qty} ${cat.unitPlural})`;
+
+    // Kräver att den valda tiden är tillräckligt lång för behandlingen
+    let timeCfg = { base: 15, per_ml: 10, per_area: 5 };
+    try {
+      const tc: any = await env.DB.prepare(
+        "SELECT base, per_ml, per_area FROM time_config WHERE id = 1"
+      ).first();
+      if (tc) timeCfg = { base: tc.base, per_ml: tc.per_ml, per_area: tc.per_area };
+    } catch {}
+    const needMin = estimatedMinutes(cat, qty, timeCfg);
+    if ((slot.duration || 30) < needMin) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: `Den valda tiden är för kort för behandlingen (behöver ~${needMin} min). Välj en längre tid.`,
+        },
+        { status: 400 }
+      );
+    }
 
     // Uppslag (om konfigurerat)
     let finalNamn = namn;

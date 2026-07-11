@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { categories, computeQuantity } from "@/lib/treatments";
+import {
+  categories,
+  computeQuantity,
+  estimatedMinutes,
+  type TimeConfig,
+} from "@/lib/treatments";
 import { validatePersonnummer } from "@/lib/personnummer";
 
 type Slot = { id: number; datum: string; tid: string; duration: number };
@@ -29,6 +34,11 @@ export default function BookingForm() {
 
   const [tiers, setTiers] = useState<Tiers>({});
   const [mlWeights, setMlWeights] = useState<Record<string, number>>({});
+  const [timeConfig, setTimeConfig] = useState<TimeConfig>({
+    base: 15,
+    per_ml: 10,
+    per_area: 5,
+  });
   const [category, setCategory] = useState<string>(categories[0]?.key || "fillers");
   const [areas, setAreas] = useState<string[]>([]);
 
@@ -62,6 +72,7 @@ export default function BookingForm() {
       .then((d) => {
         setTiers(d.tiers || {});
         setMlWeights(d.mlWeights || {});
+        if (d.timeConfig) setTimeConfig(d.timeConfig);
       })
       .catch(() => setTiers({}));
   }, []);
@@ -121,6 +132,11 @@ export default function BookingForm() {
   const currentCat = categories.find((c) => c.key === category)!;
   const quantity = computeQuantity(currentCat, areas, mlWeights);
   const currentPrice = quantity >= 1 ? tiers[category]?.[quantity] : undefined;
+  const requiredMin =
+    quantity >= 1 ? estimatedMinutes(currentCat, quantity, timeConfig) : 0;
+  const selectedSlot = slots.find((s) => s.id === selected);
+  const slotTooShort =
+    !!selectedSlot && requiredMin > 0 && selectedSlot.duration < requiredMin;
   const pnrCheck = pnr ? validatePersonnummer(pnr) : null;
 
   function toggleArea(a: string) {
@@ -143,6 +159,12 @@ export default function BookingForm() {
     if (!currentPrice) {
       setError(
         "För den här kombinationen behöver vi lägga upp en plan — boka en konsultation."
+      );
+      return;
+    }
+    if (slotTooShort) {
+      setError(
+        `Den valda tiden räcker inte. Välj en tid på minst ${requiredMin} min.`
       );
       return;
     }
@@ -256,8 +278,13 @@ export default function BookingForm() {
             >
               <option value="">Välj tid</option>
               {timesForDate.map((s) => (
-                <option key={s.id} value={s.id}>
+                <option
+                  key={s.id}
+                  value={s.id}
+                  disabled={requiredMin > 0 && s.duration < requiredMin}
+                >
                   {s.tid} ({s.duration} min)
+                  {requiredMin > 0 && s.duration < requiredMin ? " – för kort" : ""}
                 </option>
               ))}
             </select>
@@ -331,11 +358,20 @@ export default function BookingForm() {
       {areas.length > 0 && (
         <div className="mt-4 rounded-lg border border-gold bg-cream p-3 text-center text-sm text-ink">
           {currentPrice != null ? (
-            <span>
-              Beräknat: ca{" "}
-              <strong>{currentPrice.toLocaleString("sv-SE")} kr</strong> — för
-              den här kombinationen lägger vi upp en plan vid en konsultation.
-            </span>
+            <div>
+              <div>
+                Beräknat: ca{" "}
+                <strong>{currentPrice.toLocaleString("sv-SE")} kr</strong> · ca{" "}
+                {requiredMin} min — för den här kombinationen lägger vi upp en
+                plan vid en konsultation.
+              </div>
+              {slotTooShort && (
+                <div className="mt-1 text-sage-dark">
+                  Den valda tiden räcker inte. Välj en tid på minst {requiredMin}{" "}
+                  min.
+                </div>
+              )}
+            </div>
           ) : (
             <span>
               För den här kombinationen lägger vi upp en plan vid en
@@ -441,7 +477,7 @@ export default function BookingForm() {
 
       <button
         type="submit"
-        disabled={status === "sending" || !currentPrice}
+        disabled={status === "sending" || !currentPrice || slotTooShort}
         className="mt-6 w-full rounded-full bg-gold px-8 py-3.5 text-cream transition-colors hover:bg-gold-light disabled:opacity-60"
       >
         {status === "sending" ? "Bokar…" : "Boka & betala"}

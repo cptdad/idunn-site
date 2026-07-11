@@ -68,6 +68,21 @@ export function categoryByKey(key: string): Category | undefined {
 
 // Beräkna kvantitet från valda områdesnamn:
 // fillers -> summan av ml-vikter, rynkbehandling -> antal valda områden.
+export type TimeConfig = { base: number; per_ml: number; per_area: number };
+
+export const defaultTimeConfig: TimeConfig = { base: 15, per_ml: 10, per_area: 5 };
+
+// Uppskattad behandlingstid i minuter: grundtid + tillägg per ml (fillers)
+// eller per område (rynkbehandling). Värdena är konfigurerbara i admin.
+export function estimatedMinutes(
+  cat: Category,
+  quantity: number,
+  cfg: TimeConfig = defaultTimeConfig
+): number {
+  const perUnit = cat.mode === "ml" ? cfg.per_ml : cfg.per_area;
+  return cfg.base + perUnit * quantity;
+}
+
 export function computeQuantity(
   cat: Category,
   selectedNames: string[],

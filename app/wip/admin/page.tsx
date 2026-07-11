@@ -19,6 +19,7 @@ export default function AdminPage() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [tiers, setTiers] = useState<Record<string, Record<number, number>>>({});
   const [mlWeights, setMlWeights] = useState<Record<string, number>>({});
+  const [timeConfig, setTimeConfig] = useState({ base: 15, per_ml: 10, per_area: 5 });
   const [memberships, setMemberships] = useState<any[]>([]);
   const [memEmail, setMemEmail] = useState("");
   const [memNamn, setMemNamn] = useState("");
@@ -63,6 +64,7 @@ export default function AdminPage() {
     loadPrices();
     loadMemberships();
     loadMlWeights();
+    loadTimeConfig();
   }
 
   async function refresh() {
@@ -163,6 +165,27 @@ export default function AdminPage() {
       });
     }
     await loadMlWeights();
+    setBusy(false);
+  }
+
+  async function loadTimeConfig() {
+    const res = await fetch("/api/admin/time-config", {
+      headers: { "x-admin-password": password },
+    });
+    if (res.ok) {
+      const d = await res.json();
+      if (d.timeConfig) setTimeConfig(d.timeConfig);
+    }
+  }
+
+  async function saveTimeConfig() {
+    setBusy(true);
+    await fetch("/api/admin/time-config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": password },
+      body: JSON.stringify(timeConfig),
+    });
+    await loadTimeConfig();
     setBusy(false);
   }
 
@@ -528,6 +551,43 @@ export default function AdminPage() {
             className="mt-2 rounded-full bg-gold px-6 py-2.5 text-sm text-cream hover:bg-gold-light disabled:opacity-60"
           >
             Spara mängder
+          </button>
+        </div>
+      </div>
+
+      {/* Tidsåtgång */}
+      <div className="mt-16">
+        <h2 className="font-serif text-xl text-ink">Tidsåtgång</h2>
+        <p className="mt-1 text-xs text-ink/50">
+          Beräknad behandlingstid = grundtid + tillägg per ml (fillers) / per
+          område (rynkbehandling). Kunden kan bara boka en tid som är minst så
+          lång.
+        </p>
+        <div className="mt-4 max-w-md space-y-3">
+          {[
+            { key: "base", label: "Grundtid (min)" },
+            { key: "per_ml", label: "Tillägg per ml – fillers (min)" },
+            { key: "per_area", label: "Tillägg per område – rynkbehandling (min)" },
+          ].map((f) => (
+            <div key={f.key} className="flex items-center justify-between gap-4">
+              <span className="text-sm text-ink/70">{f.label}</span>
+              <input
+                type="number"
+                min={0}
+                value={(timeConfig as any)[f.key] ?? 0}
+                onChange={(e) =>
+                  setTimeConfig({ ...timeConfig, [f.key]: Number(e.target.value) })
+                }
+                className="w-24 rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
+              />
+            </div>
+          ))}
+          <button
+            onClick={saveTimeConfig}
+            disabled={busy}
+            className="mt-2 rounded-full bg-gold px-6 py-2.5 text-sm text-cream hover:bg-gold-light disabled:opacity-60"
+          >
+            Spara tidsåtgång
           </button>
         </div>
       </div>

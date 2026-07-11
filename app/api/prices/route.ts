@@ -24,7 +24,17 @@ export async function GET() {
       // area_ml kan saknas innan migrering – ignorera
     }
 
-    return NextResponse.json({ ok: true, tiers, mlWeights });
+    let timeConfig = { base: 15, per_ml: 10, per_area: 5 };
+    try {
+      const tc: any = await env.DB.prepare(
+        "SELECT base, per_ml, per_area FROM time_config WHERE id = 1"
+      ).first();
+      if (tc) timeConfig = { base: tc.base, per_ml: tc.per_ml, per_area: tc.per_area };
+    } catch {
+      // time_config kan saknas innan migrering – använd standard
+    }
+
+    return NextResponse.json({ ok: true, tiers, mlWeights, timeConfig });
   } catch (e) {
     console.error("Fel i /api/prices:", e);
     return NextResponse.json({ ok: false, tiers: {}, mlWeights: {} }, { status: 500 });
