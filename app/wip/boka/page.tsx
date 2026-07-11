@@ -22,6 +22,10 @@ export default function Boka() {
           <p className="mt-5 text-lg text-ink/75">
             Välj en ledig tid nedan (varje tid är 30 minuter).
           </p>
+          <p className="mt-3 text-sm text-ink/70">
+            Om detta är din första behandling blir du uppringd minst 48 timmar
+            innan för en kostnadsfri konsultation.
+          </p>
           <ul className="mt-8 space-y-3 text-sm text-ink/75">
             <li>• Legitimerad sjuksköterska</li>
             <li>• Nära Gullmarsplan, Stockholm</li>
