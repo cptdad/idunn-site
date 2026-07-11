@@ -20,9 +20,7 @@ export default function Boka() {
             Boka din konsultation
           </h1>
           <p className="mt-5 text-lg text-ink/75">
-            Välj en ledig tid nedan (varje tid är 30 minuter). Första besöket är
-            alltid en lugn genomgång av dina önskemål och förutsättningar — inte
-            en garanterad behandling.
+            Välj en ledig tid nedan (varje tid är 30 minuter).
           </p>
           <ul className="mt-8 space-y-3 text-sm text-ink/75">
             <li>• Legitimerad sjuksköterska</li>
