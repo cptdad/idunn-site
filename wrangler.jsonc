@@ -13,5 +13,16 @@
       "binding": "WORKER_SELF_REFERENCE",
       "service": "idunn-site"
     }
+  ],
+  "vars": {
+    "NOTIFY_EMAIL": "cptdad12@proton.me",
+    "MAIL_FROM": "Idunn Estetik <onboarding@resend.dev>"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "idunn-bookings",
+      "database_id": "9e027015-77b6-457e-9376-f2f9f3dc682e"
+    }
   ]
 }
