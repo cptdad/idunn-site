@@ -68,11 +68,15 @@ export function categoryByKey(key: string): Category | undefined {
 
 // Beräkna kvantitet från valda områdesnamn:
 // fillers -> summan av ml-vikter, rynkbehandling -> antal valda områden.
-export function computeQuantity(cat: Category, selectedNames: string[]): number {
+export function computeQuantity(
+  cat: Category,
+  selectedNames: string[],
+  mlWeights?: Record<string, number>
+): number {
   if (cat.mode === "ml") {
     return cat.areas
       .filter((a) => selectedNames.includes(a.name))
-      .reduce((sum, a) => sum + (a.ml || 0), 0);
+      .reduce((sum, a) => sum + (mlWeights?.[a.name] ?? a.ml ?? 0), 0);
   }
   return cat.areas.filter((a) => selectedNames.includes(a.name)).length;
 }

@@ -12,6 +12,7 @@ export default function AdminPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [tiers, setTiers] = useState<Record<string, Record<number, number>>>({});
+  const [mlWeights, setMlWeights] = useState<Record<string, number>>({});
   const [memberships, setMemberships] = useState<any[]>([]);
   const [memEmail, setMemEmail] = useState("");
   const [memNamn, setMemNamn] = useState("");
@@ -54,6 +55,7 @@ export default function AdminPage() {
     loadBookings();
     loadPrices();
     loadMemberships();
+    loadMlWeights();
   }
 
   async function refresh() {
@@ -115,6 +117,34 @@ export default function AdminPage() {
       }
     }
     await loadPrices();
+    setBusy(false);
+  }
+
+  async function loadMlWeights() {
+    const res = await fetch("/api/admin/area-ml", {
+      headers: { "x-admin-password": password },
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setMlWeights(d.mlWeights || {});
+    }
+  }
+
+  function setMlWeight(area: string, ml: number) {
+    setMlWeights((prev) => ({ ...prev, [area]: ml }));
+  }
+
+  async function saveMlWeights() {
+    setBusy(true);
+    const fillerAreas = categories.find((c) => c.key === "fillers")?.areas || [];
+    for (const a of fillerAreas) {
+      await fetch("/api/admin/area-ml", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-admin-password": password },
+        body: JSON.stringify({ area: a.name, ml: mlWeights[a.name] ?? 0 }),
+      });
+    }
+    await loadMlWeights();
     setBusy(false);
   }
 
@@ -427,6 +457,38 @@ export default function AdminPage() {
           Spara priser
         </button>
       </div>
+      {/* Mängd per fillerområde (ml) */}
+      <div className="mt-16">
+        <h2 className="font-serif text-xl text-ink">
+          Mängd per fillerområde (ml)
+        </h2>
+        <p className="mt-1 text-xs text-ink/50">
+          Uppskattad mängd som används för att räkna ut total ml och pris vid
+          bokning.
+        </p>
+        <div className="mt-4 max-w-md space-y-2">
+          {(categories.find((c) => c.key === "fillers")?.areas || []).map((a) => (
+            <div key={a.name} className="flex items-center justify-between gap-4">
+              <span className="text-sm text-ink/70">{a.name}</span>
+              <input
+                type="number"
+                min={0}
+                value={mlWeights[a.name] ?? 0}
+                onChange={(e) => setMlWeight(a.name, Number(e.target.value))}
+                className="w-24 rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
+              />
+            </div>
+          ))}
+          <button
+            onClick={saveMlWeights}
+            disabled={busy}
+            className="mt-2 rounded-full bg-gold px-6 py-2.5 text-sm text-cream hover:bg-gold-light disabled:opacity-60"
+          >
+            Spara mängder
+          </button>
+        </div>
+      </div>
+
       {/* Medlemskap */}
       <div className="mt-16">
         <h2 className="font-serif text-xl text-ink">Medlemskap</h2>

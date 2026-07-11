@@ -82,7 +82,14 @@ export async function POST(request: Request) {
 
     // Pris från tiered prislista (fillers per ml / toxin per område)
     const cat = categoryByKey(category);
-    const qty = cat ? computeQuantity(cat, Array.isArray(areas) ? areas : []) : 0;
+    const mlWeights: Record<string, number> = {};
+    try {
+      const mlr = await env.DB.prepare("SELECT area, ml FROM area_ml").all();
+      for (const r of mlr.results ?? []) mlWeights[r.area] = r.ml;
+    } catch {}
+    const qty = cat
+      ? computeQuantity(cat, Array.isArray(areas) ? areas : [], mlWeights)
+      : 0;
     let price = 0;
     if (cat && qty >= 1) {
       const prow: any = await env.DB.prepare(

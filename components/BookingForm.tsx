@@ -14,6 +14,7 @@ export default function BookingForm() {
   const [selected, setSelected] = useState<number | null>(null);
 
   const [tiers, setTiers] = useState<Tiers>({});
+  const [mlWeights, setMlWeights] = useState<Record<string, number>>({});
   const [category, setCategory] = useState<string>(categories[0]?.key || "fillers");
   const [areas, setAreas] = useState<string[]>([]);
 
@@ -43,7 +44,10 @@ export default function BookingForm() {
       .catch(() => setSiteKey(""));
     fetch("/api/prices")
       .then((r) => r.json())
-      .then((d) => setTiers(d.tiers || {}))
+      .then((d) => {
+        setTiers(d.tiers || {});
+        setMlWeights(d.mlWeights || {});
+      })
       .catch(() => setTiers({}));
   }, []);
 
@@ -99,7 +103,7 @@ export default function BookingForm() {
   }
 
   const currentCat = categories.find((c) => c.key === category)!;
-  const quantity = computeQuantity(currentCat, areas);
+  const quantity = computeQuantity(currentCat, areas, mlWeights);
   const currentPrice = quantity >= 1 ? tiers[category]?.[quantity] : undefined;
   const tooLarge = quantity > 4;
   const pnrCheck = pnr ? validatePersonnummer(pnr) : null;
