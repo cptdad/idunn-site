@@ -170,7 +170,6 @@ export async function POST(request: Request) {
             quantity: 1,
           },
         ],
-        automatic_payment_methods: { enabled: true },
         metadata: { bookingId: String(bookingId) },
         success_url: `${base}/boka/klar?token=${token}`,
         cancel_url: `${base}/boka`,
