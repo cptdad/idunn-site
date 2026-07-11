@@ -11,6 +11,7 @@ export default function BookingForm() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
   const [selected, setSelected] = useState<number | null>(null);
+  const [prices, setPrices] = useState<Record<string, number>>({});
 
   const [pnr, setPnr] = useState("");
   const [namn, setNamn] = useState("");
@@ -37,6 +38,10 @@ export default function BookingForm() {
       .then((r) => r.json())
       .then((cfg) => setSiteKey(cfg.turnstileSiteKey || ""))
       .catch(() => setSiteKey(""));
+    fetch("/api/prices")
+      .then((r) => r.json())
+      .then((d) => setPrices(d.prices || {}))
+      .catch(() => setPrices({}));
   }, []);
 
   useEffect(() => {
@@ -137,6 +142,10 @@ export default function BookingForm() {
         }
         return;
       }
+      if (data.checkoutUrl) {
+        window.location.href = data.checkoutUrl;
+        return;
+      }
       setConfirmedTime(data.nar || "");
       setStatus("ok");
     } catch {
@@ -162,6 +171,10 @@ export default function BookingForm() {
   for (const s of slots) {
     (byDate[s.datum] ||= []).push(s);
   }
+
+  const slugByTitle: Record<string, string> = {};
+  for (const t of treatments) slugByTitle[t.title] = t.slug;
+  const currentPrice = prices[slugByTitle[omrade]];
 
   return (
     <form onSubmit={onSubmit} className="rounded-2xl border border-line bg-cream p-8">
@@ -273,6 +286,13 @@ export default function BookingForm() {
             </option>
           ))}
         </select>
+        {currentPrice != null && (
+          <p className="mt-2 text-sm text-ink/70">
+            {currentPrice > 0
+              ? `Pris: ${currentPrice.toLocaleString("sv-SE")} kr — betalas vid bokning.`
+              : "Kostnadsfri konsultation."}
+          </p>
+        )}
       </div>
 
       <div className="mt-5">

@@ -2,41 +2,20 @@ import { NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { validatePersonnummer } from "@/lib/personnummer";
 import { verifyTurnstile } from "@/lib/turnstile";
+import { getStripe } from "@/lib/stripe";
+import { sendBookingConfirmation } from "@/lib/bookingEmails";
+import { treatments } from "@/lib/treatments";
 
 export const dynamic = "force-dynamic";
 
-type Msg = {
-  from: string;
-  to: string;
-  subject: string;
-  text: string;
-  reply_to?: string;
-};
-
-async function sendEmail(apiKey: string, msg: Msg) {
-  const res = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(msg),
-  });
-  if (!res.ok) {
-    console.error("Resend-fel:", res.status, await res.text());
-  }
-  return res.ok;
-}
-
 // Uppslag av namn/adress från personnummer – bundet till bokningen (serverside).
-// Aktiveras när PNR_LOOKUP_API_KEY satts och tjänsten kopplats in.
 async function lookupNamnAdress(
   env: any,
   normalizedPnr: string
 ): Promise<{ namn?: string; adress?: string } | null> {
   const apiKey = env.PNR_LOOKUP_API_KEY;
   if (!apiKey) return null;
-  // TODO: anropa vald tjänst (t.ex. Roaring) med normalizedPnr och returnera namn/adress.
+  // TODO: anropa vald tjänst med normalizedPnr och returnera namn/adress.
   return null;
 }
 
@@ -58,7 +37,7 @@ export async function POST(request: Request) {
 
     const env = getCloudflareContext().env as any;
 
-    // 1) Turnstile – blockera bottar/missbruk
+    // 1) Turnstile
     const ip = request.headers.get("CF-Connecting-IP") || undefined;
     const human = await verifyTurnstile(
       turnstileToken || "",
@@ -87,13 +66,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Kontrollera att tiden fortfarande är ledig
+    // Kontrollera att tiden är ledig
     const slot: any = await env.DB.prepare(
       "SELECT id, datum, tid, status FROM slots WHERE id = ?"
     )
       .bind(slotId)
       .first();
-
     if (!slot || slot.status !== "available") {
       return NextResponse.json(
         { ok: false, error: "Tiden är tyvärr inte längre tillgänglig. Välj en annan." },
@@ -101,21 +79,17 @@ export async function POST(request: Request) {
       );
     }
 
-    // Boka tiden atomärt (undvik dubbelbokning)
-    const upd = await env.DB.prepare(
-      "UPDATE slots SET status = 'booked' WHERE id = ? AND status = 'available'"
-    )
-      .bind(slotId)
-      .run();
-
-    if (!upd.meta || upd.meta.changes !== 1) {
-      return NextResponse.json(
-        { ok: false, error: "Tiden hann bli bokad. Välj en annan tid." },
-        { status: 409 }
-      );
+    // Pris för valt behandlingsområde
+    const slug = treatments.find((t) => t.title === omrade)?.slug;
+    let price = 0;
+    if (slug) {
+      const prow: any = await env.DB.prepare("SELECT amount FROM prices WHERE slug = ?")
+        .bind(slug)
+        .first();
+      price = prow?.amount ?? 0;
     }
 
-    // Uppslag bundet till bokningen (när tjänst är konfigurerad)
+    // Uppslag (om konfigurerat)
     let finalNamn = namn;
     let finalAdress = adress ?? null;
     const uppslag = await lookupNamnAdress(env, pnr.normalized || "");
@@ -124,80 +98,101 @@ export async function POST(request: Request) {
       if (uppslag.adress) finalAdress = uppslag.adress;
     }
 
-    // Token för av-/ombokningslänk
     const token = crypto.randomUUID();
-
-    // Spara bokningen
-    try {
-      await env.DB.prepare(
-        "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid, token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
-      )
-        .bind(
-          finalNamn,
-          epost,
-          telefon ?? null,
-          omrade ?? null,
-          meddelande ?? null,
-          pnr.normalized ?? null,
-          finalAdress,
-          slotId,
-          slot.datum,
-          slot.tid,
-          token
-        )
-        .run();
-    } catch (e) {
-      console.error("Kunde inte spara bokning i D1:", e);
-    }
-
-    // Mejl
-    const apiKey: string | undefined = env.RESEND_API_KEY;
-    const from: string =
-      env.MAIL_FROM || "Idunn Estetik <onboarding@resend.dev>";
-    const notify: string = env.NOTIFY_EMAIL || "cptdad12@proton.me";
     const nar = `${slot.datum} kl. ${slot.tid}`;
     const base = env.SITE_URL || new URL(request.url).origin;
-    const avbokaLink = `${base}/avboka?token=${token}`;
 
-    if (apiKey) {
-      await sendEmail(apiKey, {
-        from,
-        to: notify,
-        subject: `Ny bokning – ${finalNamn} (${nar})`,
-        text:
-          `Ny bokning via idunn-estetik.se:\n\n` +
-          `Tid: ${nar} (30 min)\n` +
-          `Namn: ${finalNamn}\n` +
-          `Personnummer: ${pnr.display}\n` +
-          `Adress: ${finalAdress || "-"}\n` +
-          `E-post: ${epost}\n` +
-          `Telefon: ${telefon || "-"}\n` +
-          `Behandlingsområde: ${omrade || "-"}\n` +
-          `Meddelande: ${meddelande || "-"}\n`,
-      });
+    // ---- Gratis (t.ex. konsultation): boka direkt ----
+    if (price <= 0) {
+      const upd = await env.DB.prepare(
+        "UPDATE slots SET status = 'booked' WHERE id = ? AND status = 'available'"
+      )
+        .bind(slotId)
+        .run();
+      if (!upd.meta || upd.meta.changes !== 1) {
+        return NextResponse.json(
+          { ok: false, error: "Tiden hann bli bokad. Välj en annan tid." },
+          { status: 409 }
+        );
+      }
+      await env.DB.prepare(
+        "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid, token, amount, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
+      )
+        .bind(
+          finalNamn, epost, telefon ?? null, omrade ?? null, meddelande ?? null,
+          pnr.normalized ?? null, finalAdress, slotId, slot.datum, slot.tid, token, 0
+        )
+        .run();
 
-      await sendEmail(apiKey, {
-        from,
-        to: epost,
-        reply_to: notify,
-        subject: "Din bokning – Iðunn Estetik",
-        text:
-          `Hej ${finalNamn},\n\n` +
-          `Tack för din bokning hos Iðunn Estetik.\n\n` +
-          `Tid: ${nar} (30 minuter)\n\n` +
-          `Första besöket är alltid en lugn genomgång — ingen behandling utförs ` +
-          `utan att du fått fullständig information.\n\n` +
-          `Behöver du av- eller omboka? Använd din länk:\n${avbokaLink}\n\n` +
-          `Avbokning senare än 24 timmar före besöket debiteras med 50 % av ` +
-          `behandlingens pris.\n\n` +
-          `Vänliga hälsningar,\n` +
-          `Iðunn Estetik Stockholm`,
+      await sendBookingConfirmation(env, {
+        namn: finalNamn, epost, telefon, omrade, meddelande,
+        personnummer: pnr.display, adress: finalAdress,
+        datum: slot.datum, tid: slot.tid, token, amount: 0,
       });
-    } else {
-      console.warn("RESEND_API_KEY saknas – hoppar över mejlutskick.");
+      return NextResponse.json({ ok: true, nar });
     }
 
-    return NextResponse.json({ ok: true, nar });
+    // ---- Betald behandling: håll tiden och skapa Stripe Checkout ----
+    const hold = await env.DB.prepare(
+      "UPDATE slots SET status = 'pending' WHERE id = ? AND status = 'available'"
+    )
+      .bind(slotId)
+      .run();
+    if (!hold.meta || hold.meta.changes !== 1) {
+      return NextResponse.json(
+        { ok: false, error: "Tiden hann bli bokad. Välj en annan tid." },
+        { status: 409 }
+      );
+    }
+
+    const ins = await env.DB.prepare(
+      "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid, token, amount, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
+    )
+      .bind(
+        finalNamn, epost, telefon ?? null, omrade ?? null, meddelande ?? null,
+        pnr.normalized ?? null, finalAdress, slotId, slot.datum, slot.tid, token, price
+      )
+      .run();
+    const bookingId = ins.meta?.last_row_id;
+
+    try {
+      const stripe = getStripe(env);
+      const session = await stripe.checkout.sessions.create({
+        mode: "payment",
+        customer_email: epost,
+        line_items: [
+          {
+            price_data: {
+              currency: "sek",
+              product_data: { name: `${omrade} – ${nar}` },
+              unit_amount: price * 100,
+            },
+            quantity: 1,
+          },
+        ],
+        automatic_payment_methods: { enabled: true },
+        metadata: { bookingId: String(bookingId) },
+        success_url: `${base}/boka/klar?token=${token}`,
+        cancel_url: `${base}/boka`,
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+      });
+      return NextResponse.json({ ok: true, checkoutUrl: session.url });
+    } catch (e) {
+      console.error("Stripe-fel:", e);
+      // Släpp tiden igen
+      await env.DB.prepare(
+        "UPDATE slots SET status = 'available' WHERE id = ? AND status = 'pending'"
+      )
+        .bind(slotId)
+        .run();
+      await env.DB.prepare("UPDATE bookings SET status = 'expired' WHERE id = ?")
+        .bind(bookingId)
+        .run();
+      return NextResponse.json(
+        { ok: false, error: "Kunde inte starta betalningen. Försök igen." },
+        { status: 502 }
+      );
+    }
   } catch (e) {
     console.error("Fel i /api/boka:", e);
     return NextResponse.json(
