@@ -296,15 +296,53 @@ export default function AdminPage() {
     (byDate[s.datum] ||= []).push(s);
   }
 
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const activeBookings = bookings.filter((b) => b.status === "active");
+  const upcomingBookings = activeBookings.filter((b) => b.datum >= todayStr);
+  const revenue = activeBookings.reduce((s, b) => s + (b.amount || 0), 0);
+  const activeMembers = memberships.filter((m) => m.status === "active");
+  const mrr = activeMembers.reduce((s, m) => s + (m.amount || 0), 0);
+  const availableSlots = slots.filter(
+    (s) => s.status === "available" && s.datum >= todayStr
+  ).length;
+
   return (
     <Container className="py-16">
-      <h1 className="font-serif text-3xl text-ink">Hantera tider</h1>
-      <p className="mt-2 text-sm text-ink/60">
+      <h1 className="font-serif text-3xl text-ink">Admin</h1>
+
+      {/* Översikt */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          { label: "Kommande bokningar", value: String(upcomingBookings.length) },
+          {
+            label: "Intäkter (betalda)",
+            value: `${revenue.toLocaleString("sv-SE")} kr`,
+          },
+          {
+            label: "Aktiva medlemskap",
+            value: `${activeMembers.length} · ${mrr.toLocaleString("sv-SE")} kr/mån`,
+          },
+          { label: "Lediga tider framåt", value: String(availableSlots) },
+        ].map((c) => (
+          <div
+            key={c.label}
+            className="rounded-2xl border border-line bg-cream p-5"
+          >
+            <p className="text-xs uppercase tracking-wide text-ink/50">
+              {c.label}
+            </p>
+            <p className="mt-2 font-serif text-2xl text-ink">{c.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <h2 className="mt-16 font-serif text-2xl text-ink">Hantera tider</h2>
+      <p className="mt-1 text-sm text-ink/60">
         Välj längd (30–90 min) per tid. Lediga tider visas för kunder på
         bokningssidan.
       </p>
 
-      <div className="mt-10 grid gap-6 md:grid-cols-2">
+      <div className="mt-6 grid gap-6 md:grid-cols-2">
         {/* Lägg till enstaka tid */}
         <form
           onSubmit={addSingle}
