@@ -15,7 +15,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, error: "Fel lösenord." }, { status: 401 });
   }
   const { results } = await env.DB.prepare(
-    "SELECT id, namn, epost, telefon, personnummer, adress, omrade, datum, tid, status, meddelande, created_at FROM bookings ORDER BY datum DESC, tid DESC"
+    "SELECT id, namn, epost, telefon, personnummer, adress, omrade, datum, tid, status, meddelande, created_at FROM bookings WHERE status IN ('active', 'cancelled') ORDER BY datum DESC, tid DESC"
   ).all();
   return NextResponse.json({ ok: true, bookings: results ?? [] });
 }
