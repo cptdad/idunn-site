@@ -3,7 +3,13 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export const dynamic = "force-dynamic";
 
-type Msg = { from: string; to: string; subject: string; text: string };
+type Msg = {
+  from: string;
+  to: string;
+  subject: string;
+  text: string;
+  reply_to?: string;
+};
 
 async function sendEmail(apiKey: string, msg: Msg) {
   const res = await fetch("https://api.resend.com/emails", {
@@ -67,10 +73,11 @@ export async function POST(request: Request) {
           `Meddelande: ${meddelande || "-"}\n`,
       });
 
-      // Bekräftelse till kunden
+      // Bekräftelse till kunden (svar går till kliniken)
       await sendEmail(apiKey, {
         from,
         to: epost,
+        reply_to: notify,
         subject: "Tack för din förfrågan – Iðunn Estetik",
         text:
           `Hej ${namn},\n\n` +

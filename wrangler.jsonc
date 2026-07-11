@@ -16,7 +16,7 @@
   ],
   "vars": {
     "NOTIFY_EMAIL": "cptdad12@proton.me",
-    "MAIL_FROM": "Idunn Estetik <onboarding@resend.dev>"
+    "MAIL_FROM": "Iðunn Estetik <no-reply@idunn-estetik.se>"
   },
   "d1_databases": [
     {
