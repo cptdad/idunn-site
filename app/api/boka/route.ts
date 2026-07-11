@@ -124,10 +124,13 @@ export async function POST(request: Request) {
       if (uppslag.adress) finalAdress = uppslag.adress;
     }
 
+    // Token för av-/ombokningslänk
+    const token = crypto.randomUUID();
+
     // Spara bokningen
     try {
       await env.DB.prepare(
-        "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid, token) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
       )
         .bind(
           finalNamn,
@@ -139,7 +142,8 @@ export async function POST(request: Request) {
           finalAdress,
           slotId,
           slot.datum,
-          slot.tid
+          slot.tid,
+          token
         )
         .run();
     } catch (e) {
@@ -152,6 +156,8 @@ export async function POST(request: Request) {
       env.MAIL_FROM || "Idunn Estetik <onboarding@resend.dev>";
     const notify: string = env.NOTIFY_EMAIL || "cptdad12@proton.me";
     const nar = `${slot.datum} kl. ${slot.tid}`;
+    const base = env.SITE_URL || new URL(request.url).origin;
+    const avbokaLink = `${base}/avboka?token=${token}`;
 
     if (apiKey) {
       await sendEmail(apiKey, {
@@ -181,6 +187,7 @@ export async function POST(request: Request) {
           `Tid: ${nar} (30 minuter)\n\n` +
           `Första besöket är alltid en lugn genomgång — ingen behandling utförs ` +
           `utan att du fått fullständig information.\n\n` +
+          `Behöver du av- eller omboka? Använd din länk:\n${avbokaLink}\n\n` +
           `Avbokning senare än 24 timmar före besöket debiteras med 50 % av ` +
           `behandlingens pris.\n\n` +
           `Vänliga hälsningar,\n` +

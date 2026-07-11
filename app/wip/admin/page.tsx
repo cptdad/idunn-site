@@ -9,6 +9,7 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [unlocked, setUnlocked] = useState(false);
   const [slots, setSlots] = useState<Slot[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -43,12 +44,33 @@ export default function AdminPage() {
     const data = await res.json();
     setSlots(data.slots || []);
     setUnlocked(true);
+    loadBookings();
   }
 
   async function refresh() {
     const res = await api("GET");
     const data = await res.json();
     setSlots(data.slots || []);
+  }
+
+  async function loadBookings() {
+    const res = await fetch("/api/admin/bookings", {
+      headers: { "x-admin-password": password },
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setBookings(d.bookings || []);
+    }
+  }
+
+  async function cancelBooking(id: number) {
+    await fetch("/api/admin/bookings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": password },
+      body: JSON.stringify({ id, action: "cancel" }),
+    });
+    await loadBookings();
+    await refresh();
   }
 
   async function addSingle(e: React.FormEvent) {
@@ -219,6 +241,53 @@ export default function AdminPage() {
                     </button>
                   </span>
                 ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+      {/* Bokningar */}
+      <div className="mt-16">
+        <h2 className="font-serif text-xl text-ink">Bokningar</h2>
+        {bookings.length === 0 && (
+          <p className="mt-3 text-sm text-ink/60">Inga bokningar ännu.</p>
+        )}
+        <div className="mt-4 space-y-3">
+          {bookings.map((b) => (
+            <div
+              key={b.id}
+              className={`rounded-xl border p-4 text-sm ${
+                b.status === "cancelled"
+                  ? "border-line bg-beige/40 text-ink/50"
+                  : "border-line bg-cream text-ink/80"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="font-medium text-ink">
+                    {b.datum} kl. {b.tid} — {b.namn}
+                    {b.status === "cancelled" ? " (avbokad)" : ""}
+                  </p>
+                  <p className="mt-1 text-xs text-ink/60">
+                    {b.epost} · {b.telefon || "-"} · {b.omrade || "-"}
+                  </p>
+                  <p className="mt-0.5 text-xs text-ink/50">
+                    Pnr: {b.personnummer || "-"} · {b.adress || "-"}
+                  </p>
+                  {b.meddelande ? (
+                    <p className="mt-1 text-xs italic text-ink/50">
+                      ”{b.meddelande}”
+                    </p>
+                  ) : null}
+                </div>
+                {b.status !== "cancelled" && (
+                  <button
+                    onClick={() => cancelBooking(b.id)}
+                    className="shrink-0 rounded-full border border-line px-3 py-1.5 text-xs text-ink/60 hover:text-sage-dark"
+                  >
+                    Avboka
+                  </button>
+                )}
               </div>
             </div>
           ))}
