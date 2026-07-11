@@ -103,10 +103,10 @@ export default function BookingForm() {
     setLoadingSlots(false);
   }
 
+  const MAX_QTY = 4; // max 4 ml (fillers) / 4 områden (rynkbehandling)
   const currentCat = categories.find((c) => c.key === category)!;
   const quantity = computeQuantity(currentCat, areas, mlWeights);
   const currentPrice = quantity >= 1 ? tiers[category]?.[quantity] : undefined;
-  const tooLarge = quantity > 4;
   const pnrCheck = pnr ? validatePersonnummer(pnr) : null;
 
   function toggleArea(a: string) {
@@ -280,21 +280,36 @@ export default function BookingForm() {
           Välj de områden du önskar
         </label>
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {currentCat.areas.map((a) => (
-            <label
-              key={a.name}
-              className="flex items-start gap-2 text-sm text-ink/75"
-            >
-              <input
-                type="checkbox"
-                checked={areas.includes(a.name)}
-                onChange={() => toggleArea(a.name)}
-                className="mt-1 h-4 w-4 accent-gold"
-              />
-              <span>{a.name}</span>
-            </label>
-          ))}
+          {currentCat.areas.map((a) => {
+            const checked = areas.includes(a.name);
+            const inc =
+              currentCat.mode === "ml" ? mlWeights[a.name] ?? a.ml ?? 0 : 1;
+            const disabled = !checked && quantity + inc > MAX_QTY;
+            return (
+              <label
+                key={a.name}
+                className={`flex items-start gap-2 text-sm ${
+                  disabled ? "text-ink/30" : "text-ink/75"
+                }`}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  disabled={disabled}
+                  onChange={() => toggleArea(a.name)}
+                  className="mt-1 h-4 w-4 accent-gold"
+                />
+                <span>
+                  {a.name}
+                  {currentCat.mode === "ml" ? ` (${inc} ml)` : ""}
+                </span>
+              </label>
+            );
+          })}
         </div>
+        <p className="mt-2 text-xs text-ink/50">
+          Max {MAX_QTY} {currentCat.unitPlural} per bokning.
+        </p>
       </div>
 
       {/* Beräknad mängd + pris */}
