@@ -28,7 +28,7 @@ export async function sendReminders(env: any): Promise<{ sent: number }> {
     .slice(0, 10);
 
   const { results } = await env.DB.prepare(
-    "SELECT id, namn, epost, datum, tid, token FROM bookings WHERE datum = ? AND status = 'active' AND reminded = 0"
+    "SELECT id, namn, epost, datum, tid, token, duration FROM bookings WHERE datum = ? AND status = 'active' AND reminded = 0"
   )
     .bind(tomorrow)
     .all();
@@ -45,7 +45,7 @@ export async function sendReminders(env: any): Promise<{ sent: number }> {
         text:
           `Hej ${b.namn},\n\n` +
           `En vänlig påminnelse om din tid hos Iðunn Estetik imorgon:\n\n` +
-          `Tid: ${b.datum} kl. ${b.tid} (30 min)\n\n` +
+          `Tid: ${b.datum} kl. ${b.tid} (${b.duration || 30} min)\n\n` +
           `Behöver du av- eller omboka? Använd din länk:\n${link}\n\n` +
           `Avbokning senare än 24 timmar före besöket debiteras med 50 % av ` +
           `behandlingens pris.\n\n` +

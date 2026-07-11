@@ -4,9 +4,22 @@ import { useEffect, useRef, useState } from "react";
 import { categories, computeQuantity } from "@/lib/treatments";
 import { validatePersonnummer } from "@/lib/personnummer";
 
-type Slot = { id: number; datum: string; tid: string };
+type Slot = { id: number; datum: string; tid: string; duration: number };
 type Status = "idle" | "sending" | "ok" | "error";
 type Tiers = Record<string, Record<number, number>>;
+
+function formatDate(d: string): string {
+  try {
+    const s = new Date(`${d}T00:00:00`).toLocaleDateString("sv-SE", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  } catch {
+    return d;
+  }
+}
 
 export default function BookingForm() {
   const [slots, setSlots] = useState<Slot[]>([]);
@@ -30,6 +43,7 @@ export default function BookingForm() {
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [confirmedTime, setConfirmedTime] = useState("");
+  const [confirmedDuration, setConfirmedDuration] = useState(30);
 
   // Turnstile
   const [siteKey, setSiteKey] = useState("");
@@ -176,6 +190,7 @@ export default function BookingForm() {
         return;
       }
       setConfirmedTime(data.nar || "");
+      setConfirmedDuration(data.duration || 30);
       setStatus("ok");
     } catch {
       setStatus("idle");
@@ -189,8 +204,8 @@ export default function BookingForm() {
       <div className="rounded-2xl border border-line bg-cream p-8 text-center">
         <h3 className="font-serif text-2xl text-ink">Tack för din bokning</h3>
         <p className="mt-3 text-ink/75">
-          Din tid: <strong>{confirmedTime}</strong> (30 min). En bekräftelse har
-          skickats till din e-post. Första besöket är alltid en lugn genomgång.
+          Din tid: <strong>{confirmedTime}</strong> ({confirmedDuration} min). En
+          bekräftelse har skickats till din e-post.
         </p>
       </div>
     );
@@ -227,7 +242,7 @@ export default function BookingForm() {
               <option value="">Välj datum</option>
               {dates.map((d) => (
                 <option key={d} value={d}>
-                  {d}
+                  {formatDate(d)}
                 </option>
               ))}
             </select>
@@ -242,7 +257,7 @@ export default function BookingForm() {
               <option value="">Välj tid</option>
               {timesForDate.map((s) => (
                 <option key={s.id} value={s.id}>
-                  {s.tid}
+                  {s.tid} ({s.duration} min)
                 </option>
               ))}
             </select>

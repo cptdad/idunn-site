@@ -16,7 +16,10 @@ export default function BokaKlar() {
     fetch(`/api/avboka?token=${encodeURIComponent(token)}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d.ok && d.booking) setNar(`${d.booking.datum} kl. ${d.booking.tid}`);
+        if (d.ok && d.booking)
+          setNar(
+            `${d.booking.datum} kl. ${d.booking.tid} (${d.booking.duration || 30} min)`
+          );
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -30,7 +33,7 @@ export default function BokaKlar() {
           {loading
             ? "Bekräftar din bokning…"
             : nar
-            ? `Din tid: ${nar} (30 min).`
+            ? `Din tid: ${nar}.`
             : "Din bokning behandlas."}
         </p>
         <p className="mt-3 text-sm text-ink/60">

@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 
 async function getBooking(env: any, token: string) {
   return await env.DB.prepare(
-    "SELECT id, namn, datum, tid, status, slot_id, amount, stripe_payment_intent FROM bookings WHERE token = ?"
+    "SELECT id, namn, datum, tid, status, slot_id, amount, stripe_payment_intent, duration FROM bookings WHERE token = ?"
   )
     .bind(token)
     .first();
@@ -25,7 +25,13 @@ export async function GET(request: Request) {
   }
   return NextResponse.json({
     ok: true,
-    booking: { namn: b.namn, datum: b.datum, tid: b.tid, status: b.status },
+    booking: {
+      namn: b.namn,
+      datum: b.datum,
+      tid: b.tid,
+      status: b.status,
+      duration: b.duration,
+    },
   });
 }
 
@@ -68,7 +74,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ ok: false, error: "Välj en ny tid." }, { status: 400 });
       }
       const slot: any = await env.DB.prepare(
-        "SELECT id, datum, tid, status FROM slots WHERE id = ?"
+        "SELECT id, datum, tid, status, duration FROM slots WHERE id = ?"
       )
         .bind(newSlotId)
         .first();
@@ -95,9 +101,9 @@ export async function POST(request: Request) {
           .run();
       }
       await env.DB.prepare(
-        "UPDATE bookings SET slot_id = ?, datum = ?, tid = ?, reminded = 0 WHERE id = ?"
+        "UPDATE bookings SET slot_id = ?, datum = ?, tid = ?, duration = ?, reminded = 0 WHERE id = ?"
       )
-        .bind(newSlotId, slot.datum, slot.tid, b.id)
+        .bind(newSlotId, slot.datum, slot.tid, slot.duration, b.id)
         .run();
       return NextResponse.json({ ok: true, nar: `${slot.datum} kl. ${slot.tid}` });
     }

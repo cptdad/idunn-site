@@ -69,7 +69,7 @@ export async function POST(request: Request) {
 
     // Kontrollera att tiden är ledig
     const slot: any = await env.DB.prepare(
-      "SELECT id, datum, tid, status FROM slots WHERE id = ?"
+      "SELECT id, datum, tid, status, duration FROM slots WHERE id = ?"
     )
       .bind(slotId)
       .first();
@@ -136,20 +136,20 @@ export async function POST(request: Request) {
         );
       }
       await env.DB.prepare(
-        "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid, token, amount, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
+        "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid, token, amount, duration, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')"
       )
         .bind(
           finalNamn, epost, telefon ?? null, omrade ?? null, meddelande ?? null,
-          pnr.normalized ?? null, finalAdress, slotId, slot.datum, slot.tid, token, 0
+          pnr.normalized ?? null, finalAdress, slotId, slot.datum, slot.tid, token, 0, slot.duration
         )
         .run();
 
       await sendBookingConfirmation(env, {
         namn: finalNamn, epost, telefon, omrade, meddelande,
         personnummer: pnr.display, adress: finalAdress,
-        datum: slot.datum, tid: slot.tid, token, amount: 0,
+        datum: slot.datum, tid: slot.tid, token, amount: 0, duration: slot.duration,
       });
-      return NextResponse.json({ ok: true, nar });
+      return NextResponse.json({ ok: true, nar, duration: slot.duration });
     }
 
     // ---- Betald behandling: håll tiden och skapa Stripe Checkout ----
@@ -166,11 +166,11 @@ export async function POST(request: Request) {
     }
 
     const ins = await env.DB.prepare(
-      "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid, token, amount, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
+      "INSERT INTO bookings (namn, epost, telefon, omrade, meddelande, personnummer, adress, slot_id, datum, tid, token, amount, duration, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')"
     )
       .bind(
         finalNamn, epost, telefon ?? null, omrade ?? null, meddelande ?? null,
-        pnr.normalized ?? null, finalAdress, slotId, slot.datum, slot.tid, token, price
+        pnr.normalized ?? null, finalAdress, slotId, slot.datum, slot.tid, token, price, slot.duration
       )
       .run();
     const bookingId = ins.meta?.last_row_id;

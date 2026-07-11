@@ -20,7 +20,7 @@ export default function Boka() {
             Boka din konsultation
           </h1>
           <p className="mt-5 text-lg text-ink/75">
-            Välj en ledig tid nedan (varje tid är 30 minuter).
+            Välj en ledig tid nedan. Längden visas för varje tid.
           </p>
           <p className="mt-3 text-sm text-ink/70">
             Om detta är din första behandling hos oss för ett nytt område, eller

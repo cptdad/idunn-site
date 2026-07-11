@@ -3,7 +3,13 @@
 import { useEffect, useState } from "react";
 import Container from "@/components/Container";
 
-type Booking = { namn: string; datum: string; tid: string; status: string };
+type Booking = {
+  namn: string;
+  datum: string;
+  tid: string;
+  status: string;
+  duration?: number;
+};
 type Slot = { id: number; datum: string; tid: string };
 
 export default function Avboka() {
@@ -108,7 +114,7 @@ export default function Avboka() {
               <strong>
                 {booking.datum} kl. {booking.tid}
               </strong>{" "}
-              (30 min).
+              ({booking.duration || 30} min).
             </p>
             <p className="mt-3 text-sm text-ink/60">
               Avbokning senare än 24 timmar före besöket debiteras med 50 % av

@@ -16,14 +16,15 @@ export async function GET(request: Request) {
   }
   const today = new Date().toISOString().slice(0, 10);
   const { results } = await env.DB.prepare(
-    "SELECT id, datum, tid, status FROM slots WHERE datum >= ? ORDER BY datum, tid"
+    "SELECT id, datum, tid, status, duration FROM slots WHERE datum >= ? ORDER BY datum, tid"
   )
     .bind(today)
     .all();
   return NextResponse.json({ ok: true, slots: results ?? [] });
 }
 
-// Admin: skapa tid(er). Antingen { datum, tid } eller { datum, start, slut } (30-min).
+// Admin: skapa tid(er) med vald längd. { datum, tid, duration } eller
+// { datum, start, slut, duration } (genererar tider med steg = längden).
 export async function POST(request: Request) {
   const env = getCloudflareContext().env as any;
   if (!authOk(request, env)) {
@@ -31,16 +32,17 @@ export async function POST(request: Request) {
   }
   try {
     const body = await request.json();
-    const times = buildTimes(body);
+    const duration = clampDuration(body.duration);
+    const times = buildTimes(body, duration);
     if (!times.length) {
       return NextResponse.json({ ok: false, error: "Inga giltiga tider." }, { status: 400 });
     }
     let added = 0;
     for (const t of times) {
       const r = await env.DB.prepare(
-        "INSERT OR IGNORE INTO slots (datum, tid) VALUES (?, ?)"
+        "INSERT OR IGNORE INTO slots (datum, tid, duration) VALUES (?, ?, ?)"
       )
-        .bind(t.datum, t.tid)
+        .bind(t.datum, t.tid, duration)
         .run();
       if (r.meta && r.meta.changes) added += r.meta.changes;
     }
@@ -65,7 +67,12 @@ export async function DELETE(request: Request) {
   return NextResponse.json({ ok: true });
 }
 
-function buildTimes(body: any): { datum: string; tid: string }[] {
+function clampDuration(d: any): number {
+  const n = Math.round(Number(d));
+  return [30, 45, 60, 90].includes(n) ? n : 30;
+}
+
+function buildTimes(body: any, duration: number): { datum: string; tid: string }[] {
   const datum = body?.datum;
   if (!datum || !/^\d{4}-\d{2}-\d{2}$/.test(datum)) return [];
   if (body.tid) {
@@ -77,7 +84,7 @@ function buildTimes(body: any): { datum: string; tid: string }[] {
     const slut = toMinutes(body.slut);
     if (start == null || slut == null) return [];
     const out: { datum: string; tid: string }[] = [];
-    for (let cur = start; cur < slut; cur += 30) {
+    for (let cur = start; cur < slut; cur += duration) {
       out.push({ datum, tid: fromMinutes(cur) });
     }
     return out;

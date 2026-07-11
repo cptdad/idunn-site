@@ -50,7 +50,7 @@ export default function Priser() {
                   }`}
                 >
                   <span className="text-ink">
-                    {q} {c.unitPlural}
+                    {q} {q === 1 ? c.unit : c.unitPlural}
                   </span>
                   <span className="text-sm text-ink/70">
                     {rows[q] != null

@@ -13,6 +13,7 @@ type Booking = {
   tid: string;
   token: string;
   amount?: number | null;
+  duration?: number | null;
 };
 
 async function sendEmail(
@@ -69,6 +70,7 @@ export async function sendBookingConfirmation(env: any, b: Booking) {
   const notify = env.NOTIFY_EMAIL || "info@idunn-estetik.se";
   const base = env.SITE_URL || "https://idunn-estetik.se/wip";
   const nar = `${b.datum} kl. ${b.tid}`;
+  const langd = b.duration || 30;
   const link = `${base}/avboka?token=${b.token}`;
   const belopp = b.amount ? `${b.amount} kr (betald)` : "-";
 
@@ -79,7 +81,7 @@ export async function sendBookingConfirmation(env: any, b: Booking) {
     subject: `Ny bokning – ${b.namn} (${nar})`,
     text:
       `Ny bokning via idunn-estetik.se:\n\n` +
-      `Tid: ${nar} (30 min)\n` +
+      `Tid: ${nar} (${langd} min)\n` +
       `Namn: ${b.namn}\n` +
       `Personnummer: ${b.personnummer || "-"}\n` +
       `Adress: ${b.adress || "-"}\n` +
@@ -99,7 +101,7 @@ export async function sendBookingConfirmation(env: any, b: Booking) {
     text:
       `Hej ${b.namn},\n\n` +
       `Tack för din bokning hos Iðunn Estetik.\n\n` +
-      `Tid: ${nar} (30 minuter)\n\n` +
+      `Tid: ${nar} (${langd} minuter)\n\n` +
       `Första besöket är alltid en lugn genomgång — ingen behandling utförs ` +
       `utan att du fått fullständig information.\n\n` +
       `Behöver du av- eller omboka? Använd din länk:\n${link}\n\n` +
