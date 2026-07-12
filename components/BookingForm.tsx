@@ -1,12 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import {
-  categories,
-  computeQuantity,
-  combinedMinutes,
-  type TimeConfig,
-} from "@/lib/treatments";
+import { categories, combinedMinutes, type TimeConfig } from "@/lib/treatments";
 import { validatePersonnummer } from "@/lib/personnummer";
 import { requiredBlocks, slotTimes } from "@/lib/slots";
 import { stockholmMs } from "@/lib/time";
@@ -14,6 +9,8 @@ import { stockholmMs } from "@/lib/time";
 type Slot = { datum: string; tid: string };
 type Status = "idle" | "sending" | "ok" | "error";
 type Tiers = Record<string, Record<number, number>>;
+type FillerItem = { name: string; ml: number; disabled: boolean };
+type ToxinItem = { name: string; disabled: boolean };
 
 const fillersCat = categories.find((c) => c.key === "fillers")!;
 const toxinCat = categories.find((c) => c.key === "toxin")!;
@@ -39,15 +36,19 @@ export default function BookingForm() {
   const [selectedTid, setSelectedTid] = useState("");
 
   const [tiers, setTiers] = useState<Tiers>({});
-  const [mlWeights, setMlWeights] = useState<Record<string, number>>({});
   const [timeConfig, setTimeConfig] = useState<TimeConfig>({
     base: 15,
     per_ml: 10,
     per_area: 5,
   });
+  const [fillerRows, setFillerRows] = useState<FillerItem[]>(
+    fillersCat.areas.map((a) => ({ name: a.name, ml: a.ml ?? 0, disabled: false }))
+  );
+  const [toxinRows, setToxinRows] = useState<ToxinItem[]>(
+    toxinCat.areas.map((a) => ({ name: a.name, disabled: false }))
+  );
   const [fillerAreas, setFillerAreas] = useState<string[]>([]);
   const [toxinAreas, setToxinAreas] = useState<string[]>([]);
-  const [disabledAreas, setDisabledAreas] = useState<string[]>([]);
 
   const [pnr, setPnr] = useState("");
   const [namn, setNamn] = useState("");
@@ -78,9 +79,22 @@ export default function BookingForm() {
       .then((r) => r.json())
       .then((d) => {
         setTiers(d.tiers || {});
-        setMlWeights(d.mlWeights || {});
-        setDisabledAreas(d.disabledAreas || []);
         if (d.timeConfig) setTimeConfig(d.timeConfig);
+        if (d.areas?.fillers)
+          setFillerRows(
+            d.areas.fillers.map((a: any) => ({
+              name: a.name,
+              ml: a.ml ?? 0,
+              disabled: !!a.disabled,
+            }))
+          );
+        if (d.areas?.toxin)
+          setToxinRows(
+            d.areas.toxin.map((a: any) => ({
+              name: a.name,
+              disabled: !!a.disabled,
+            }))
+          );
       })
       .catch(() => setTiers({}));
   }, []);
@@ -117,9 +131,9 @@ export default function BookingForm() {
   }, [siteKey]);
 
   const allAreas = [...fillerAreas, ...toxinAreas];
-  const disabledSet = new Set(disabledAreas);
-  const fillerAreaList = fillersCat.areas.filter((a) => !disabledSet.has(a.name));
-  const toxinAreaList = toxinCat.areas.filter((a) => !disabledSet.has(a.name));
+  const fillerAreaList = fillerRows.filter((a) => !a.disabled);
+  const toxinAreaList = toxinRows.filter((a) => !a.disabled);
+  const mlMap = new Map(fillerRows.map((a) => [a.name, a.ml]));
 
   useEffect(() => {
     const v = validatePersonnummer(pnr);
@@ -165,8 +179,8 @@ export default function BookingForm() {
     setLoadingSlots(false);
   }
 
-  const fillerMl = computeQuantity(fillersCat, fillerAreas, mlWeights);
-  const toxinCount = computeQuantity(toxinCat, toxinAreas);
+  const fillerMl = fillerAreas.reduce((s, n) => s + (mlMap.get(n) ?? 0), 0);
+  const toxinCount = toxinAreas.length;
   const fillerPrice = fillerMl >= 1 ? tiers["fillers"]?.[fillerMl] ?? 0 : 0;
   const toxinPrice = toxinCount >= 1 ? tiers["toxin"]?.[toxinCount] ?? 0 : 0;
   const totalPrice = fillerPrice + toxinPrice;
@@ -420,7 +434,7 @@ export default function BookingForm() {
             )}
             {fillerAreaList.map((a) => {
               const checked = fillerAreas.includes(a.name);
-              const inc = mlWeights[a.name] ?? a.ml ?? 0;
+              const inc = a.ml;
               const disabled = !checked && fillerMl + inc > 4;
               return (
                 <label

@@ -18,9 +18,11 @@ export default function AdminPage() {
   const [slots, setSlots] = useState<Slot[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
   const [tiers, setTiers] = useState<Record<string, Record<number, number>>>({});
-  const [mlWeights, setMlWeights] = useState<Record<string, number>>({});
   const [timeConfig, setTimeConfig] = useState({ base: 15, per_ml: 10, per_area: 5 });
-  const [disabledAreas, setDisabledAreas] = useState<string[]>([]);
+  const [areas, setAreas] = useState<any[]>([]);
+  const [newFillerName, setNewFillerName] = useState("");
+  const [newFillerMl, setNewFillerMl] = useState("");
+  const [newToxinName, setNewToxinName] = useState("");
   const [memberships, setMemberships] = useState<any[]>([]);
   const [memEmail, setMemEmail] = useState("");
   const [memNamn, setMemNamn] = useState("");
@@ -63,9 +65,8 @@ export default function AdminPage() {
     loadBookings();
     loadPrices();
     loadMemberships();
-    loadMlWeights();
     loadTimeConfig();
-    loadTreatments();
+    loadAreas();
   }
 
   async function refresh() {
@@ -141,52 +142,74 @@ export default function AdminPage() {
     setBusy(false);
   }
 
-  async function loadTreatments() {
-    const res = await fetch("/api/admin/treatments", {
+  async function loadAreas() {
+    const res = await fetch("/api/admin/areas", {
       headers: { "x-admin-password": password },
     });
     if (res.ok) {
       const d = await res.json();
-      setDisabledAreas(d.disabledAreas || []);
+      setAreas(d.areas || []);
     }
   }
 
-  async function toggleTreatment(area: string, enabled: boolean) {
-    setDisabledAreas((prev) =>
-      enabled ? prev.filter((a) => a !== area) : [...prev, area]
+  function setAreaField(id: number, field: string, value: any) {
+    setAreas((prev) =>
+      prev.map((a) => (a.id === id ? { ...a, [field]: value } : a))
     );
-    await fetch("/api/admin/treatments", {
+  }
+
+  async function postArea(a: any) {
+    await fetch("/api/admin/areas", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-admin-password": password },
-      body: JSON.stringify({ area, enabled }),
+      body: JSON.stringify({
+        id: a.id,
+        category: a.category,
+        name: a.name,
+        ml: a.ml,
+        disabled: a.disabled,
+      }),
     });
   }
 
-  async function loadMlWeights() {
-    const res = await fetch("/api/admin/area-ml", {
+  async function saveArea(a: any) {
+    setBusy(true);
+    await postArea(a);
+    await loadAreas();
+    setBusy(false);
+  }
+
+  async function toggleArea(a: any, enabled: boolean) {
+    setAreaField(a.id, "disabled", !enabled);
+    await postArea({ ...a, disabled: !enabled });
+  }
+
+  async function addArea(category: "fillers" | "toxin") {
+    const name = category === "fillers" ? newFillerName : newToxinName;
+    if (!name.trim()) return;
+    const ml = category === "fillers" ? Number(newFillerMl) || 0 : null;
+    setBusy(true);
+    await fetch("/api/admin/areas", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": password },
+      body: JSON.stringify({ category, name, ml, disabled: false }),
+    });
+    if (category === "fillers") {
+      setNewFillerName("");
+      setNewFillerMl("");
+    } else setNewToxinName("");
+    await loadAreas();
+    setBusy(false);
+  }
+
+  async function deleteArea(a: any) {
+    if (!confirm(`Ta bort "${a.name}"?`)) return;
+    setBusy(true);
+    await fetch(`/api/admin/areas?id=${a.id}`, {
+      method: "DELETE",
       headers: { "x-admin-password": password },
     });
-    if (res.ok) {
-      const d = await res.json();
-      setMlWeights(d.mlWeights || {});
-    }
-  }
-
-  function setMlWeight(area: string, ml: number) {
-    setMlWeights((prev) => ({ ...prev, [area]: ml }));
-  }
-
-  async function saveMlWeights() {
-    setBusy(true);
-    const fillerAreas = categories.find((c) => c.key === "fillers")?.areas || [];
-    for (const a of fillerAreas) {
-      await fetch("/api/admin/area-ml", {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-admin-password": password },
-        body: JSON.stringify({ area: a.name, ml: mlWeights[a.name] ?? 0 }),
-      });
-    }
-    await loadMlWeights();
+    await loadAreas();
     setBusy(false);
   }
 
@@ -529,38 +552,117 @@ export default function AdminPage() {
           ))}
         </div>
       </div>
-      {/* Tillgängliga behandlingar */}
+      {/* Behandlingar (redigera, lägg till, ta bort) */}
       <div className="mt-16">
-        <h2 className="font-serif text-xl text-ink">Tillgängliga behandlingar</h2>
+        <h2 className="font-serif text-xl text-ink">Behandlingar</h2>
         <p className="mt-1 text-xs text-ink/50">
-          Bocka ur ett område för att tillfälligt dölja det på bokningssidan.
-          Ändringen slår igenom direkt.
+          Redigera namn och (för fillers) ml, slå av/på synlighet på
+          bokningssidan, lägg till nya eller ta bort. Bocka ur &quot;Visas&quot;
+          för att tillfälligt dölja utan att ta bort.
         </p>
-        <div className="mt-4 grid gap-8 md:grid-cols-2">
-          {categories.map((c) => (
-            <div key={c.key}>
-              <p className="mb-2 text-sm font-medium text-ink">{c.title}</p>
-              <div className="space-y-2">
-                {c.areas.map((a) => {
-                  const enabled = !disabledAreas.includes(a.name);
-                  return (
-                    <label
-                      key={a.name}
-                      className="flex items-start gap-2 text-sm text-ink/75"
+        <div className="mt-4 grid gap-10 md:grid-cols-2">
+          {categories.map((c) => {
+            const rows = areas.filter((a) => a.category === c.key);
+            const isFiller = c.key === "fillers";
+            return (
+              <div key={c.key}>
+                <p className="mb-3 text-sm font-medium text-ink">{c.title}</p>
+                <div className="space-y-3">
+                  {rows.map((a) => (
+                    <div
+                      key={a.id}
+                      className="rounded-lg border border-line bg-cream p-3"
                     >
                       <input
-                        type="checkbox"
-                        checked={enabled}
-                        onChange={(e) => toggleTreatment(a.name, e.target.checked)}
-                        className="mt-1 h-4 w-4 accent-gold"
+                        type="text"
+                        value={a.name}
+                        onChange={(e) => setAreaField(a.id, "name", e.target.value)}
+                        className="w-full rounded-lg border border-line bg-white px-3 py-2 text-sm text-ink outline-none focus:border-gold"
                       />
-                      <span>{a.name}</span>
-                    </label>
-                  );
-                })}
+                      <div className="mt-2 flex flex-wrap items-center gap-4">
+                        {isFiller && (
+                          <label className="flex items-center gap-2 text-xs text-ink/60">
+                            ml
+                            <input
+                              type="number"
+                              min={0}
+                              value={a.ml ?? 0}
+                              onChange={(e) =>
+                                setAreaField(a.id, "ml", Number(e.target.value))
+                              }
+                              className="w-20 rounded-lg border border-line bg-white px-2 py-1.5 text-ink outline-none focus:border-gold"
+                            />
+                          </label>
+                        )}
+                        <label className="flex items-center gap-2 text-xs text-ink/60">
+                          <input
+                            type="checkbox"
+                            checked={!a.disabled}
+                            onChange={(e) => toggleArea(a, e.target.checked)}
+                            className="h-4 w-4 accent-gold"
+                          />
+                          Visas
+                        </label>
+                        <button
+                          onClick={() => saveArea(a)}
+                          disabled={busy}
+                          className="rounded-full bg-gold px-4 py-1.5 text-xs text-cream hover:bg-gold-light disabled:opacity-60"
+                        >
+                          Spara
+                        </button>
+                        <button
+                          onClick={() => deleteArea(a)}
+                          disabled={busy}
+                          className="rounded-full border border-line px-4 py-1.5 text-xs text-ink/70 hover:border-gold disabled:opacity-60"
+                        >
+                          Ta bort
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Lägg till nytt område */}
+                <div className="mt-4 rounded-lg border border-dashed border-line p-3">
+                  <p className="mb-2 text-xs font-medium text-ink/60">
+                    Lägg till nytt
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Namn på behandling"
+                    value={isFiller ? newFillerName : newToxinName}
+                    onChange={(e) =>
+                      isFiller
+                        ? setNewFillerName(e.target.value)
+                        : setNewToxinName(e.target.value)
+                    }
+                    className="w-full rounded-lg border border-line bg-cream px-3 py-2 text-sm text-ink outline-none focus:border-gold"
+                  />
+                  <div className="mt-2 flex items-center gap-3">
+                    {isFiller && (
+                      <label className="flex items-center gap-2 text-xs text-ink/60">
+                        ml
+                        <input
+                          type="number"
+                          min={0}
+                          value={newFillerMl}
+                          onChange={(e) => setNewFillerMl(e.target.value)}
+                          className="w-20 rounded-lg border border-line bg-cream px-2 py-1.5 text-ink outline-none focus:border-gold"
+                        />
+                      </label>
+                    )}
+                    <button
+                      onClick={() => addArea(c.key as "fillers" | "toxin")}
+                      disabled={busy}
+                      className="rounded-full bg-gold px-4 py-1.5 text-xs text-cream hover:bg-gold-light disabled:opacity-60"
+                    >
+                      Lägg till
+                    </button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -606,38 +708,6 @@ export default function AdminPage() {
           Spara priser
         </button>
       </div>
-      {/* Mängd per fillerområde (ml) */}
-      <div className="mt-16">
-        <h2 className="font-serif text-xl text-ink">
-          Mängd per fillerområde (ml)
-        </h2>
-        <p className="mt-1 text-xs text-ink/50">
-          Uppskattad mängd som används för att räkna ut total ml och pris vid
-          bokning.
-        </p>
-        <div className="mt-4 max-w-md space-y-2">
-          {(categories.find((c) => c.key === "fillers")?.areas || []).map((a) => (
-            <div key={a.name} className="flex items-center justify-between gap-4">
-              <span className="text-sm text-ink/70">{a.name}</span>
-              <input
-                type="number"
-                min={0}
-                value={mlWeights[a.name] ?? 0}
-                onChange={(e) => setMlWeight(a.name, Number(e.target.value))}
-                className="w-24 rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
-              />
-            </div>
-          ))}
-          <button
-            onClick={saveMlWeights}
-            disabled={busy}
-            className="mt-2 rounded-full bg-gold px-6 py-2.5 text-sm text-cream hover:bg-gold-light disabled:opacity-60"
-          >
-            Spara mängder
-          </button>
-        </div>
-      </div>
-
       {/* Tidsåtgång */}
       <div className="mt-16">
         <h2 className="font-serif text-xl text-ink">Tidsåtgång</h2>

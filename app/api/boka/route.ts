@@ -8,6 +8,7 @@ import { categoryByKey, computeQuantity, combinedMinutes } from "@/lib/treatment
 import { requiredBlocks, slotTimes } from "@/lib/slots";
 import { consultationRequired } from "@/lib/consultation";
 import { stockholmMs } from "@/lib/time";
+import { loadTreatmentAreas, quantitiesFromRows } from "@/lib/areas";
 
 export const dynamic = "force-dynamic";
 
@@ -73,14 +74,30 @@ export async function POST(request: Request) {
     const fArr = Array.isArray(fillerAreas) ? fillerAreas : [];
     const tArr = Array.isArray(toxinAreas) ? toxinAreas : [];
 
-    const mlWeights: Record<string, number> = {};
-    try {
-      const mlr = await env.DB.prepare("SELECT area, ml FROM area_ml").all();
-      for (const r of mlr.results ?? []) mlWeights[r.area] = r.ml;
-    } catch {}
-
-    const fillerMl = computeQuantity(fillersCat, fArr, mlWeights);
-    const toxinCount = computeQuantity(toxinCat, tArr);
+    // Mängder från DB-områdena (källa till sanning). Faller tillbaka på gamla
+    // hårdkodade områden + area_ml om treatment_areas saknas.
+    let fillerMl: number;
+    let toxinCount: number;
+    const rows = await loadTreatmentAreas(env);
+    if (rows) {
+      const q = quantitiesFromRows(rows, fArr, tArr);
+      if (q.invalid) {
+        return NextResponse.json(
+          { ok: false, error: "Ett valt område är inte tillgängligt. Ladda om sidan och försök igen." },
+          { status: 400 }
+        );
+      }
+      fillerMl = q.fillerMl;
+      toxinCount = q.toxinCount;
+    } else {
+      const mlWeights: Record<string, number> = {};
+      try {
+        const mlr = await env.DB.prepare("SELECT area, ml FROM area_ml").all();
+        for (const r of mlr.results ?? []) mlWeights[r.area] = r.ml;
+      } catch {}
+      fillerMl = computeQuantity(fillersCat, fArr, mlWeights);
+      toxinCount = computeQuantity(toxinCat, tArr);
+    }
 
     if (fillerMl > 4 || toxinCount > 4) {
       return NextResponse.json(
