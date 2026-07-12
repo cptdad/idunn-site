@@ -83,6 +83,17 @@ export function estimatedMinutes(
   return cfg.base + perUnit * quantity;
 }
 
+// Kombinerad behandlingstid när både fillers (ml) och rynkbehandling (områden)
+// kan ingå i samma bokning. Grundtiden räknas en gång.
+export function combinedMinutes(
+  cfg: TimeConfig,
+  fillerMl: number,
+  toxinCount: number
+): number {
+  if (fillerMl <= 0 && toxinCount <= 0) return 0;
+  return cfg.base + cfg.per_ml * fillerMl + cfg.per_area * toxinCount;
+}
+
 export function computeQuantity(
   cat: Category,
   selectedNames: string[],

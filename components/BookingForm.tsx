@@ -4,16 +4,19 @@ import { useEffect, useRef, useState } from "react";
 import {
   categories,
   computeQuantity,
-  estimatedMinutes,
+  combinedMinutes,
   type TimeConfig,
 } from "@/lib/treatments";
 import { validatePersonnummer } from "@/lib/personnummer";
 import { requiredBlocks, slotTimes } from "@/lib/slots";
 import { stockholmMs } from "@/lib/time";
 
-type Slot = { id: number; datum: string; tid: string; duration: number };
+type Slot = { datum: string; tid: string };
 type Status = "idle" | "sending" | "ok" | "error";
 type Tiers = Record<string, Record<number, number>>;
+
+const fillersCat = categories.find((c) => c.key === "fillers")!;
+const toxinCat = categories.find((c) => c.key === "toxin")!;
 
 function formatDate(d: string): string {
   try {
@@ -29,10 +32,11 @@ function formatDate(d: string): string {
 }
 
 export default function BookingForm() {
-  const [slots, setSlots] = useState<Slot[]>([]);
+  const [available, setAvailable] = useState<Slot[]>([]);
+  const [occupied, setOccupied] = useState<Slot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(true);
-  const [selected, setSelected] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTid, setSelectedTid] = useState("");
 
   const [tiers, setTiers] = useState<Tiers>({});
   const [mlWeights, setMlWeights] = useState<Record<string, number>>({});
@@ -41,8 +45,8 @@ export default function BookingForm() {
     per_ml: 10,
     per_area: 5,
   });
-  const [category, setCategory] = useState<string>(categories[0]?.key || "fillers");
-  const [areas, setAreas] = useState<string[]>([]);
+  const [fillerAreas, setFillerAreas] = useState<string[]>([]);
+  const [toxinAreas, setToxinAreas] = useState<string[]>([]);
 
   const [pnr, setPnr] = useState("");
   const [namn, setNamn] = useState("");
@@ -54,7 +58,6 @@ export default function BookingForm() {
 
   const [consultationReq, setConsultationReq] = useState(false);
   const [reviewing, setReviewing] = useState(false);
-
   const [status, setStatus] = useState<Status>("idle");
   const [error, setError] = useState("");
   const [confirmedTime, setConfirmedTime] = useState("");
@@ -109,10 +112,11 @@ export default function BookingForm() {
     }
   }, [siteKey]);
 
-  // Kolla om lagstadgad konsultation (48h) krävs när pnr + områden är angivna.
+  const allAreas = [...fillerAreas, ...toxinAreas];
+
   useEffect(() => {
     const v = validatePersonnummer(pnr);
-    if (!v.valid || areas.length === 0) {
+    if (!v.valid || allAreas.length === 0) {
       setConsultationReq(false);
       return;
     }
@@ -120,14 +124,15 @@ export default function BookingForm() {
       fetch("/api/consultation-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ personnummer: pnr, areas }),
+        body: JSON.stringify({ personnummer: pnr, areas: allAreas }),
       })
         .then((r) => r.json())
         .then((d) => setConsultationReq(!!d.required))
         .catch(() => setConsultationReq(true));
     }, 400);
     return () => clearTimeout(t);
-  }, [pnr, areas, category]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pnr, fillerAreas, toxinAreas]);
 
   function resetTurnstile() {
     const w = window as any;
@@ -143,51 +148,55 @@ export default function BookingForm() {
     setLoadingSlots(true);
     try {
       const res = await fetch("/api/slots");
-      const data = await res.json();
-      setSlots(data.slots || []);
+      const d = await res.json();
+      setAvailable(d.available || []);
+      setOccupied(d.occupied || []);
     } catch {
-      setSlots([]);
+      setAvailable([]);
+      setOccupied([]);
     }
     setLoadingSlots(false);
   }
 
-  const currentCat = categories.find((c) => c.key === category)!;
-  const quantity = computeQuantity(currentCat, areas, mlWeights);
-  const currentPrice = quantity >= 1 ? tiers[category]?.[quantity] : undefined;
-  const requiredMin =
-    quantity >= 1 ? estimatedMinutes(currentCat, quantity, timeConfig) : 0;
-  const MAX_QTY = 4;
-
+  const fillerMl = computeQuantity(fillersCat, fillerAreas, mlWeights);
+  const toxinCount = computeQuantity(toxinCat, toxinAreas);
+  const fillerPrice = fillerMl >= 1 ? tiers["fillers"]?.[fillerMl] ?? 0 : 0;
+  const toxinPrice = toxinCount >= 1 ? tiers["toxin"]?.[toxinCount] ?? 0 : 0;
+  const totalPrice = fillerPrice + toxinPrice;
+  const hasSelection = fillerMl >= 1 || toxinCount >= 1;
+  const requiredMin = combinedMinutes(timeConfig, fillerMl, toxinCount);
   const neededBlocks = requiredBlocks(requiredMin);
-  const availTimes = new Set(
-    slots.filter((s) => s.datum === selectedDate).map((s) => s.tid)
+
+  const occForDate = new Set(
+    occupied.filter((o) => o.datum === selectedDate).map((o) => o.tid)
   );
-  const fits = (startTid: string) =>
-    slotTimes(startTid, neededBlocks).every((t) => availTimes.has(t));
+  const fits = (tid: string) =>
+    slotTimes(tid, neededBlocks).every((t) => !occForDate.has(t));
 
   const cutoffMs = Date.now() + 48 * 3600 * 1000;
-  const tooSoon = (s: Slot) =>
-    consultationReq && stockholmMs(s.datum, s.tid) < cutoffMs;
+  const tooSoon = (tid: string) =>
+    consultationReq && stockholmMs(selectedDate, tid) < cutoffMs;
 
-  const selectedSlot = slots.find((s) => s.id === selected);
-  const notEnoughTime =
-    !!selectedSlot && requiredMin > 0 && !fits(selectedSlot.tid);
-  const selectedTooSoon = !!selectedSlot && tooSoon(selectedSlot);
+  const selectedClash =
+    !!selectedTid && requiredMin > 0 && !fits(selectedTid);
+  const selectedTooSoon = !!selectedTid && tooSoon(selectedTid);
   const pnrCheck = pnr ? validatePersonnummer(pnr) : null;
 
-  function toggleArea(a: string) {
-    setAreas((prev) =>
-      prev.includes(a) ? prev.filter((x) => x !== a) : [...prev, a]
+  function toggleFiller(a: string) {
+    setFillerAreas((p) =>
+      p.includes(a) ? p.filter((x) => x !== a) : [...p, a]
     );
+  }
+  function toggleToxin(a: string) {
+    setToxinAreas((p) => (p.includes(a) ? p.filter((x) => x !== a) : [...p, a]));
   }
 
   function validate(): string | null {
-    if (!selected) return "Välj en tid först.";
-    if (areas.length === 0) return "Välj minst ett område.";
-    if (!currentPrice)
-      return "För den här kombinationen behöver vi lägga upp en plan — boka en konsultation.";
-    if (notEnoughTime)
-      return "Det finns inte tillräckligt med tid från vald starttid. Välj en annan starttid.";
+    if (!selectedDate || !selectedTid) return "Välj en tid först.";
+    if (!hasSelection) return "Välj minst ett område.";
+    if (totalPrice <= 0) return "Ogiltig behandling eller mängd.";
+    if (selectedClash)
+      return "Behandlingen ryms inte från den valda tiden — en annan bokning ligger i vägen. Välj en annan tid.";
     if (selectedTooSoon)
       return "Den här behandlingen kräver en konsultation minst 48 timmar innan. Välj en tid längre fram.";
     const v = validatePersonnummer(pnr);
@@ -223,14 +232,15 @@ export default function BookingForm() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          slotId: selected,
+          datum: selectedDate,
+          tid: selectedTid,
           personnummer: pnr,
           namn,
           adress,
           epost,
           telefon,
-          category,
-          areas,
+          fillerAreas,
+          toxinAreas,
           meddelande,
           samtycke,
           turnstileToken: token,
@@ -243,7 +253,7 @@ export default function BookingForm() {
         resetTurnstile();
         setReviewing(false);
         if (res.status === 409) {
-          setSelected(null);
+          setSelectedTid("");
           loadSlots();
         }
         return;
@@ -274,27 +284,27 @@ export default function BookingForm() {
     );
   }
 
-  // ---- Granska-steg ----
   if (reviewing) {
     return (
       <div className="rounded-2xl border border-line bg-cream p-8">
         <h3 className="font-serif text-2xl text-ink">Granska din bokning</h3>
         <dl className="mt-5 space-y-2 text-sm">
           <Row label="Tid">
-            {selectedSlot ? `${formatDate(selectedSlot.datum)} kl. ${selectedSlot.tid}` : "-"}{" "}
+            {selectedTid ? `${formatDate(selectedDate)} kl. ${selectedTid}` : "-"}{" "}
             (ca {requiredMin} min)
           </Row>
-          <Row label="Behandling">
-            {currentCat.title} — {areas.join(", ")}
-          </Row>
-          <Row label="Mängd">
-            {quantity} {quantity === 1 ? currentCat.unit : currentCat.unitPlural}
-          </Row>
-          <Row label="Pris">
-            {currentPrice != null
-              ? `${currentPrice.toLocaleString("sv-SE")} kr`
-              : "-"}
-          </Row>
+          {fillerMl >= 1 && (
+            <Row label="Fillers">
+              {fillerAreas.join(", ")} ({fillerMl} ml)
+            </Row>
+          )}
+          {toxinCount >= 1 && (
+            <Row label="Rynkbehandling">
+              {toxinAreas.join(", ")} ({toxinCount}{" "}
+              {toxinCount === 1 ? "område" : "områden"})
+            </Row>
+          )}
+          <Row label="Pris">{totalPrice.toLocaleString("sv-SE")} kr</Row>
           <Row label="Namn">{namn}</Row>
           <Row label="Personnummer">{pnrCheck?.display || pnr}</Row>
           <Row label="E-post">{epost}</Row>
@@ -332,6 +342,11 @@ export default function BookingForm() {
     );
   }
 
+  const dates = Array.from(new Set(available.map((s) => s.datum))).sort();
+  const timesForDate = available
+    .filter((s) => s.datum === selectedDate)
+    .sort((a, b) => a.tid.localeCompare(b.tid));
+
   return (
     <form onSubmit={onReview} className="rounded-2xl border border-line bg-cream p-8">
       {/* Tidsval */}
@@ -341,7 +356,7 @@ export default function BookingForm() {
         </label>
         {loadingSlots ? (
           <p className="text-sm text-ink/60">Hämtar lediga tider…</p>
-        ) : slots.length === 0 ? (
+        ) : available.length === 0 ? (
           <p className="text-sm text-ink/60">
             Inga lediga tider just nu. Hör gärna av dig via kontaktsidan.
           </p>
@@ -351,126 +366,109 @@ export default function BookingForm() {
               value={selectedDate}
               onChange={(e) => {
                 setSelectedDate(e.target.value);
-                setSelected(null);
+                setSelectedTid("");
               }}
               className="w-full rounded-lg border border-line bg-cream px-4 py-3 text-ink outline-none focus:border-gold"
             >
               <option value="">Välj datum</option>
-              {Array.from(new Set(slots.map((s) => s.datum)))
-                .sort()
-                .map((d) => (
-                  <option key={d} value={d}>
-                    {formatDate(d)}
-                  </option>
-                ))}
+              {dates.map((d) => (
+                <option key={d} value={d}>
+                  {formatDate(d)}
+                </option>
+              ))}
             </select>
             <select
-              value={selected ?? ""}
-              onChange={(e) =>
-                setSelected(e.target.value ? Number(e.target.value) : null)
-              }
+              value={selectedTid}
+              onChange={(e) => setSelectedTid(e.target.value)}
               disabled={!selectedDate}
               className="w-full rounded-lg border border-line bg-cream px-4 py-3 text-ink outline-none focus:border-gold disabled:opacity-50"
             >
               <option value="">Välj tid</option>
-              {slots
-                .filter((s) => s.datum === selectedDate)
-                .sort((a, b) => a.tid.localeCompare(b.tid))
-                .map((s) => {
-                  const ok = requiredMin === 0 || fits(s.tid);
-                  const soon = tooSoon(s);
-                  return (
-                    <option key={s.id} value={s.id} disabled={!ok || soon}>
-                      {s.tid}
-                      {soon
-                        ? " – kräver konsultation (48h)"
-                        : !ok
-                        ? " – ryms ej"
-                        : ""}
-                    </option>
-                  );
-                })}
+              {timesForDate.map((s) => {
+                const clash = requiredMin > 0 && !fits(s.tid);
+                const soon = tooSoon(s.tid);
+                return (
+                  <option key={s.tid} value={s.tid} disabled={clash || soon}>
+                    {s.tid}
+                    {clash
+                      ? " – upptagen"
+                      : soon
+                      ? " – kräver konsultation (48h)"
+                      : ""}
+                  </option>
+                );
+              })}
             </select>
           </div>
         )}
       </div>
 
-      {/* Behandlingskategori */}
-      <div className="mt-6">
-        <label className="mb-2 block text-sm font-medium text-ink">Behandling</label>
-        <div className="flex gap-2">
-          {categories.map((c) => (
-            <button
-              key={c.key}
-              type="button"
-              onClick={() => {
-                setCategory(c.key);
-                setAreas([]);
-              }}
-              className={`flex-1 rounded-lg border px-4 py-2.5 text-sm transition-colors ${
-                category === c.key
-                  ? "border-gold bg-gold text-cream"
-                  : "border-line text-ink hover:border-gold"
-              }`}
-            >
-              {c.title}
-            </button>
-          ))}
+      {/* Behandlingar sida vid sida */}
+      <div className="mt-6 grid gap-6 md:grid-cols-2">
+        <div>
+          <p className="mb-2 text-sm font-medium text-ink">{fillersCat.title}</p>
+          <div className="space-y-2">
+            {fillersCat.areas.map((a) => {
+              const checked = fillerAreas.includes(a.name);
+              const inc = mlWeights[a.name] ?? a.ml ?? 0;
+              const disabled = !checked && fillerMl + inc > 4;
+              return (
+                <label
+                  key={a.name}
+                  className={`flex items-start gap-2 text-sm ${
+                    disabled ? "text-ink/30" : "text-ink/75"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => toggleFiller(a.name)}
+                    className="mt-1 h-4 w-4 accent-gold"
+                  />
+                  <span>
+                    {a.name} ({inc} ml)
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-ink/50">Max 4 ml.</p>
+        </div>
+
+        <div>
+          <p className="mb-2 text-sm font-medium text-ink">{toxinCat.title}</p>
+          <div className="space-y-2">
+            {toxinCat.areas.map((a) => {
+              const checked = toxinAreas.includes(a.name);
+              const disabled = !checked && toxinCount >= 4;
+              return (
+                <label
+                  key={a.name}
+                  className={`flex items-start gap-2 text-sm ${
+                    disabled ? "text-ink/30" : "text-ink/75"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={() => toggleToxin(a.name)}
+                    className="mt-1 h-4 w-4 accent-gold"
+                  />
+                  <span>{a.name}</span>
+                </label>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-xs text-ink/50">Max 4 områden.</p>
         </div>
       </div>
 
-      {/* Områden */}
-      <div className="mt-5">
-        <label className="mb-2 block text-sm text-ink/80">
-          Välj de områden du önskar
-        </label>
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {currentCat.areas.map((a) => {
-            const checked = areas.includes(a.name);
-            const inc =
-              currentCat.mode === "ml" ? mlWeights[a.name] ?? a.ml ?? 0 : 1;
-            const disabled = !checked && quantity + inc > MAX_QTY;
-            return (
-              <label
-                key={a.name}
-                className={`flex items-start gap-2 text-sm ${
-                  disabled ? "text-ink/30" : "text-ink/75"
-                }`}
-              >
-                <input
-                  type="checkbox"
-                  checked={checked}
-                  disabled={disabled}
-                  onChange={() => toggleArea(a.name)}
-                  className="mt-1 h-4 w-4 accent-gold"
-                />
-                <span>
-                  {a.name}
-                  {currentCat.mode === "ml" ? ` (${inc} ml)` : ""}
-                </span>
-              </label>
-            );
-          })}
-        </div>
-        <p className="mt-2 text-xs text-ink/50">
-          Max {MAX_QTY} {currentCat.unitPlural} per bokning.
-        </p>
-      </div>
-
-      {areas.length > 0 && (
+      {hasSelection && totalPrice > 0 && (
         <div className="mt-4 rounded-lg border border-gold bg-cream p-3 text-center text-sm text-ink">
-          {currentPrice != null ? (
-            <div>
-              Beräknat: ca{" "}
-              <strong>{currentPrice.toLocaleString("sv-SE")} kr</strong> · ca{" "}
-              {requiredMin} min
-            </div>
-          ) : (
-            <span>
-              För den här kombinationen lägger vi upp en plan vid en
-              konsultation.
-            </span>
-          )}
+          Beräknat: ca <strong>{totalPrice.toLocaleString("sv-SE")} kr</strong> ·
+          ca {requiredMin} min
         </div>
       )}
 
@@ -575,7 +573,12 @@ export default function BookingForm() {
 
       <button
         type="submit"
-        disabled={status === "sending" || !currentPrice || notEnoughTime || selectedTooSoon}
+        disabled={
+          status === "sending" ||
+          !totalPrice ||
+          selectedClash ||
+          selectedTooSoon
+        }
         className="mt-6 w-full rounded-full bg-gold px-8 py-3.5 text-cream transition-colors hover:bg-gold-light disabled:opacity-60"
       >
         Granska bokning

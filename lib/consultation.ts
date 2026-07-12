@@ -3,12 +3,15 @@
 // något valt område inte behandlats de senaste sex månaderna.
 
 export function parseAreas(omrade: string): string[] {
-  const after = (omrade || "").split(": ")[1] || "";
-  const names = after.split(" (")[0] || "";
-  return names
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
+  // Hanterar en eller flera behandlingar: "Fillers: A, B (2 ml); Rynkbehandling: C (1 område)"
+  return (omrade || "").split(";").flatMap((seg) => {
+    const after = seg.split(": ")[1] || "";
+    const names = after.split(" (")[0] || "";
+    return names
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  });
 }
 
 export async function consultationRequired(

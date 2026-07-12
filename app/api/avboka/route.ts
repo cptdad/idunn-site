@@ -40,7 +40,7 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   const env = getCloudflareContext().env as any;
   try {
-    const { token, action, newSlotId } = await request.json();
+    const { token, action, newDatum, newTid } = await request.json();
     if (!token) {
       return NextResponse.json({ ok: false, error: "Länk saknas." }, { status: 400 });
     }
@@ -73,13 +73,13 @@ export async function POST(request: Request) {
     }
 
     if (action === "reschedule") {
-      if (!newSlotId) {
+      if (!newDatum || !newTid) {
         return NextResponse.json({ ok: false, error: "Välj en ny tid." }, { status: 400 });
       }
       const startSlot: any = await env.DB.prepare(
-        "SELECT id, datum, tid, status FROM slots WHERE id = ?"
+        "SELECT status FROM slots WHERE datum = ? AND tid = ?"
       )
-        .bind(newSlotId)
+        .bind(newDatum, newTid)
         .first();
       if (!startSlot || startSlot.status !== "available") {
         return NextResponse.json(
@@ -88,27 +88,31 @@ export async function POST(request: Request) {
         );
       }
       const blocks = requiredBlocks(b.duration || 30);
-      const newTimes = slotTimes(startSlot.tid, blocks);
+      const newTimes = slotTimes(newTid, blocks);
       const nph = newTimes.map(() => "?").join(", ");
-      const availRow: any = await env.DB.prepare(
-        `SELECT COUNT(*) AS n FROM slots WHERE datum = ? AND tid IN (${nph}) AND status = 'available'`
+      const clash: any = await env.DB.prepare(
+        `SELECT COUNT(*) AS n FROM slots WHERE datum = ? AND tid IN (${nph}) AND status IN ('booked','pending')`
       )
-        .bind(startSlot.datum, ...newTimes)
+        .bind(newDatum, ...newTimes)
         .first();
-      if (!availRow || availRow.n !== blocks) {
+      if (clash && clash.n > 0) {
         return NextResponse.json(
           {
             ok: false,
-            error: "Det finns inte tillräckligt med sammanhängande tid från den nya starttiden.",
+            error: "Behandlingen ryms inte från den nya tiden — en annan bokning ligger i vägen.",
           },
           { status: 409 }
         );
       }
-      await env.DB.prepare(
-        `UPDATE slots SET status = 'booked' WHERE datum = ? AND tid IN (${nph}) AND status = 'available'`
-      )
-        .bind(startSlot.datum, ...newTimes)
-        .run();
+      // Boka nya block (skapa saknade)
+      for (const t of newTimes) {
+        await env.DB.prepare(
+          "INSERT INTO slots (datum, tid, status, duration) VALUES (?, ?, 'booked', 15) ON CONFLICT(datum, tid) DO UPDATE SET status = 'booked'"
+        )
+          .bind(newDatum, t)
+          .run();
+      }
+      // Frigör gamla block
       const oldTimes = slotTimes(b.tid, requiredBlocks(b.duration || 30));
       const oph = oldTimes.map(() => "?").join(", ");
       await env.DB.prepare(
@@ -117,11 +121,11 @@ export async function POST(request: Request) {
         .bind(b.datum, ...oldTimes)
         .run();
       await env.DB.prepare(
-        "UPDATE bookings SET slot_id = ?, datum = ?, tid = ?, reminded = 0 WHERE id = ?"
+        "UPDATE bookings SET datum = ?, tid = ?, reminded = 0 WHERE id = ?"
       )
-        .bind(newSlotId, startSlot.datum, startSlot.tid, b.id)
+        .bind(newDatum, newTid, b.id)
         .run();
-      return NextResponse.json({ ok: true, nar: `${startSlot.datum} kl. ${startSlot.tid}` });
+      return NextResponse.json({ ok: true, nar: `${newDatum} kl. ${newTid}` });
     }
 
     return NextResponse.json({ ok: false, error: "Okänd åtgärd." }, { status: 400 });

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Container from "@/components/Container";
+import { requiredBlocks, slotTimes } from "@/lib/slots";
 
 type Booking = {
   namn: string;
@@ -10,7 +11,7 @@ type Booking = {
   status: string;
   duration?: number;
 };
-type Slot = { id: number; datum: string; tid: string };
+type Slot = { datum: string; tid: string };
 
 export default function Avboka() {
   const [token, setToken] = useState("");
@@ -18,8 +19,9 @@ export default function Avboka() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<"view" | "reschedule" | "done">("view");
-  const [slots, setSlots] = useState<Slot[]>([]);
-  const [selected, setSelected] = useState<number | null>(null);
+  const [available, setAvailable] = useState<Slot[]>([]);
+  const [occupied, setOccupied] = useState<Slot[]>([]);
+  const [sel, setSel] = useState<Slot | null>(null);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -47,8 +49,17 @@ export default function Avboka() {
   async function loadSlots() {
     const r = await fetch("/api/slots");
     const d = await r.json();
-    setSlots(d.slots || []);
+    setAvailable(d.available || []);
+    setOccupied(d.occupied || []);
   }
+
+  const blocks = requiredBlocks(booking?.duration || 30);
+  const fits = (datum: string, tid: string) => {
+    const occ = new Set(
+      occupied.filter((o) => o.datum === datum).map((o) => o.tid)
+    );
+    return slotTimes(tid, blocks).every((t) => !occ.has(t));
+  };
 
   async function doCancel() {
     setBusy(true);
@@ -72,12 +83,17 @@ export default function Avboka() {
   }
 
   async function doReschedule() {
-    if (!selected) return;
+    if (!sel) return;
     setBusy(true);
     const r = await fetch("/api/avboka", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token, action: "reschedule", newSlotId: selected }),
+      body: JSON.stringify({
+        token,
+        action: "reschedule",
+        newDatum: sel.datum,
+        newTid: sel.tid,
+      }),
     });
     const d = await r.json();
     setBusy(false);
@@ -88,7 +104,7 @@ export default function Avboka() {
   }
 
   const byDate: Record<string, Slot[]> = {};
-  for (const s of slots) (byDate[s.datum] ||= []).push(s);
+  for (const s of available) (byDate[s.datum] ||= []).push(s);
 
   return (
     <Container className="py-20">
@@ -150,7 +166,7 @@ export default function Avboka() {
         {!loading && booking && mode === "reschedule" && (
           <div className="mt-6 rounded-2xl border border-line bg-cream p-6">
             <p className="text-sm font-medium text-ink">Välj en ny tid</p>
-            {slots.length === 0 ? (
+            {available.length === 0 ? (
               <p className="mt-3 text-sm text-ink/60">Inga lediga tider just nu.</p>
             ) : (
               <div className="mt-3 space-y-4">
@@ -160,20 +176,25 @@ export default function Avboka() {
                       {d}
                     </p>
                     <div className="flex flex-wrap gap-2">
-                      {list.map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => setSelected(s.id)}
-                          className={`rounded-full border px-4 py-2 text-sm ${
-                            selected === s.id
-                              ? "border-gold bg-gold text-cream"
-                              : "border-line text-ink hover:border-gold"
-                          }`}
-                        >
-                          {s.tid}
-                        </button>
-                      ))}
+                      {list.map((s) => {
+                        const ok = fits(s.datum, s.tid);
+                        const isSel = sel?.datum === s.datum && sel?.tid === s.tid;
+                        return (
+                          <button
+                            key={s.tid}
+                            type="button"
+                            disabled={!ok}
+                            onClick={() => setSel(s)}
+                            className={`rounded-full border px-4 py-2 text-sm disabled:opacity-40 ${
+                              isSel
+                                ? "border-gold bg-gold text-cream"
+                                : "border-line text-ink hover:border-gold"
+                            }`}
+                          >
+                            {s.tid}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -188,12 +209,13 @@ export default function Avboka() {
               </button>
               <button
                 onClick={doReschedule}
-                disabled={busy || !selected}
+                disabled={busy || !sel}
                 className="rounded-full bg-gold px-6 py-2.5 text-sm text-cream hover:bg-gold-light disabled:opacity-60"
               >
                 Bekräfta ny tid
               </button>
             </div>
+            {error && <p className="mt-3 text-sm text-sage-dark">{error}</p>}
           </div>
         )}
       </div>
