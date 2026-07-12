@@ -20,6 +20,7 @@ export default function AdminPage() {
   const [tiers, setTiers] = useState<Record<string, Record<number, number>>>({});
   const [mlWeights, setMlWeights] = useState<Record<string, number>>({});
   const [timeConfig, setTimeConfig] = useState({ base: 15, per_ml: 10, per_area: 5 });
+  const [disabledAreas, setDisabledAreas] = useState<string[]>([]);
   const [memberships, setMemberships] = useState<any[]>([]);
   const [memEmail, setMemEmail] = useState("");
   const [memNamn, setMemNamn] = useState("");
@@ -64,6 +65,7 @@ export default function AdminPage() {
     loadMemberships();
     loadMlWeights();
     loadTimeConfig();
+    loadTreatments();
   }
 
   async function refresh() {
@@ -137,6 +139,27 @@ export default function AdminPage() {
     }
     await loadPrices();
     setBusy(false);
+  }
+
+  async function loadTreatments() {
+    const res = await fetch("/api/admin/treatments", {
+      headers: { "x-admin-password": password },
+    });
+    if (res.ok) {
+      const d = await res.json();
+      setDisabledAreas(d.disabledAreas || []);
+    }
+  }
+
+  async function toggleTreatment(area: string, enabled: boolean) {
+    setDisabledAreas((prev) =>
+      enabled ? prev.filter((a) => a !== area) : [...prev, area]
+    );
+    await fetch("/api/admin/treatments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-admin-password": password },
+      body: JSON.stringify({ area, enabled }),
+    });
   }
 
   async function loadMlWeights() {
@@ -506,6 +529,41 @@ export default function AdminPage() {
           ))}
         </div>
       </div>
+      {/* Tillgängliga behandlingar */}
+      <div className="mt-16">
+        <h2 className="font-serif text-xl text-ink">Tillgängliga behandlingar</h2>
+        <p className="mt-1 text-xs text-ink/50">
+          Bocka ur ett område för att tillfälligt dölja det på bokningssidan.
+          Ändringen slår igenom direkt.
+        </p>
+        <div className="mt-4 grid gap-8 md:grid-cols-2">
+          {categories.map((c) => (
+            <div key={c.key}>
+              <p className="mb-2 text-sm font-medium text-ink">{c.title}</p>
+              <div className="space-y-2">
+                {c.areas.map((a) => {
+                  const enabled = !disabledAreas.includes(a.name);
+                  return (
+                    <label
+                      key={a.name}
+                      className="flex items-start gap-2 text-sm text-ink/75"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={enabled}
+                        onChange={(e) => toggleTreatment(a.name, e.target.checked)}
+                        className="mt-1 h-4 w-4 accent-gold"
+                      />
+                      <span>{a.name}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Priser */}
       <div className="mt-16">
         <h2 className="font-serif text-xl text-ink">Priser</h2>

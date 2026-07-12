@@ -34,7 +34,15 @@ export async function GET() {
       // time_config kan saknas innan migrering – använd standard
     }
 
-    return NextResponse.json({ ok: true, tiers, mlWeights, timeConfig });
+    const disabledAreas: string[] = [];
+    try {
+      const da = await env.DB.prepare("SELECT area FROM disabled_areas").all();
+      for (const r of da.results ?? []) disabledAreas.push(r.area);
+    } catch {
+      // disabled_areas kan saknas innan migrering – allt tillgängligt
+    }
+
+    return NextResponse.json({ ok: true, tiers, mlWeights, timeConfig, disabledAreas });
   } catch (e) {
     console.error("Fel i /api/prices:", e);
     return NextResponse.json({ ok: false, tiers: {}, mlWeights: {} }, { status: 500 });

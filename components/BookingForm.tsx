@@ -47,6 +47,7 @@ export default function BookingForm() {
   });
   const [fillerAreas, setFillerAreas] = useState<string[]>([]);
   const [toxinAreas, setToxinAreas] = useState<string[]>([]);
+  const [disabledAreas, setDisabledAreas] = useState<string[]>([]);
 
   const [pnr, setPnr] = useState("");
   const [namn, setNamn] = useState("");
@@ -78,6 +79,7 @@ export default function BookingForm() {
       .then((d) => {
         setTiers(d.tiers || {});
         setMlWeights(d.mlWeights || {});
+        setDisabledAreas(d.disabledAreas || []);
         if (d.timeConfig) setTimeConfig(d.timeConfig);
       })
       .catch(() => setTiers({}));
@@ -115,6 +117,9 @@ export default function BookingForm() {
   }, [siteKey]);
 
   const allAreas = [...fillerAreas, ...toxinAreas];
+  const disabledSet = new Set(disabledAreas);
+  const fillerAreaList = fillersCat.areas.filter((a) => !disabledSet.has(a.name));
+  const toxinAreaList = toxinCat.areas.filter((a) => !disabledSet.has(a.name));
 
   useEffect(() => {
     const v = validatePersonnummer(pnr);
@@ -410,7 +415,10 @@ export default function BookingForm() {
         <div>
           <p className="mb-2 text-sm font-medium text-ink">{fillersCat.title}</p>
           <div className="space-y-2">
-            {fillersCat.areas.map((a) => {
+            {fillerAreaList.length === 0 && (
+              <p className="text-sm text-ink/40">Inga områden tillgängliga just nu.</p>
+            )}
+            {fillerAreaList.map((a) => {
               const checked = fillerAreas.includes(a.name);
               const inc = mlWeights[a.name] ?? a.ml ?? 0;
               const disabled = !checked && fillerMl + inc > 4;
@@ -441,7 +449,10 @@ export default function BookingForm() {
         <div>
           <p className="mb-2 text-sm font-medium text-ink">{toxinCat.title}</p>
           <div className="space-y-2">
-            {toxinCat.areas.map((a) => {
+            {toxinAreaList.length === 0 && (
+              <p className="text-sm text-ink/40">Inga områden tillgängliga just nu.</p>
+            )}
+            {toxinAreaList.map((a) => {
               const checked = toxinAreas.includes(a.name);
               const disabled = !checked && toxinCount >= 4;
               return (
