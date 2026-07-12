@@ -2,6 +2,7 @@
 // bokningar och av Stripe-webhooken när en betalning gått igenom).
 
 type Booking = {
+  id?: number;
   namn: string;
   epost: string;
   telefon?: string | null;
@@ -62,6 +63,45 @@ function careBlock(omrade: string): string {
   );
 }
 
+// Områdesnamn ur omrade-strängen "Kategori: A, B (X ml)".
+function parseAreas(omrade: string): string[] {
+  const after = (omrade || "").split(": ")[1] || "";
+  const names = after.split(" (")[0] || "";
+  return names
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+// Krävs lagstadgad konsultation? Ja om kunden är ny (inget tidigare besök),
+// eller om något valt område inte behandlats de senaste sex månaderna.
+async function needsConsultation(env: any, b: Booking): Promise<boolean> {
+  const pnr = b.personnummer;
+  if (!pnr) return true;
+  try {
+    const { results } = await env.DB.prepare(
+      "SELECT omrade, datum FROM bookings WHERE personnummer = ? AND status = 'active' AND id != ?"
+    )
+      .bind(pnr, b.id ?? -1)
+      .all();
+    const prior = results ?? [];
+    if (prior.length === 0) return true; // ny kund
+    const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 3600 * 1000)
+      .toISOString()
+      .slice(0, 10);
+    const treated = new Set<string>();
+    for (const p of prior) {
+      if (p.datum >= sixMonthsAgo) {
+        for (const a of parseAreas(p.omrade)) treated.add(a);
+      }
+    }
+    const current = parseAreas(b.omrade || "");
+    return current.some((a) => !treated.has(a)); // nytt/olämnat område
+  } catch {
+    return true; // vid osäkerhet: visa konsultationstexten
+  }
+}
+
 export async function sendBookingConfirmation(env: any, b: Booking) {
   const apiKey = env.RESEND_API_KEY;
   if (!apiKey) return;
@@ -73,6 +113,7 @@ export async function sendBookingConfirmation(env: any, b: Booking) {
   const langd = b.duration || 30;
   const link = `${base}/avboka?token=${b.token}`;
   const belopp = b.amount ? `${b.amount} kr (betald)` : "-";
+  const consultation = await needsConsultation(env, b);
 
   // Notis till kliniken
   await sendEmail(apiKey, {
@@ -102,14 +143,16 @@ export async function sendBookingConfirmation(env: any, b: Booking) {
       `Hej ${b.namn},\n\n` +
       `Tack för din bokning hos Iðunn Estetik.\n\n` +
       `Tid: ${nar} (${langd} minuter)\n\n` +
-      `Första besöket är alltid en lugn genomgång — ingen behandling utförs ` +
-      `utan att du fått fullständig information.\n\n` +
+      (consultation
+        ? `Vi kommer kontakta dig 48 timmar innan inbokad behandling för en lagstadgad konsultation.\n\n`
+        : "") +
       `Behöver du av- eller omboka? Använd din länk:\n${link}\n\n` +
       `Avbokning senare än 24 timmar före besöket debiteras med 50 % av ` +
       `behandlingens pris.\n\n` +
       `— — —\n\n` +
       `${careBlock(b.omrade || "")}\n\n` +
       `— — —\n\n` +
+      `Vi hoppas att du kommer bli nöjd med din behandling!\n\n` +
       `Vänliga hälsningar,\n` +
       `Iðunn Estetik Stockholm`,
   });
