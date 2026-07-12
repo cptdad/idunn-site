@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
+import { BLOCK } from "@/lib/slots";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +33,7 @@ export async function POST(request: Request) {
   }
   try {
     const body = await request.json();
-    const duration = clampDuration(body.duration);
+    const duration = BLOCK;
     const times = buildTimes(body, duration);
     if (!times.length) {
       return NextResponse.json({ ok: false, error: "Inga giltiga tider." }, { status: 400 });
@@ -65,11 +66,6 @@ export async function DELETE(request: Request) {
   }
   await env.DB.prepare("DELETE FROM slots WHERE id = ?").bind(id).run();
   return NextResponse.json({ ok: true });
-}
-
-function clampDuration(d: any): number {
-  const n = Math.round(Number(d));
-  return [30, 45, 60, 90].includes(n) ? n : 30;
 }
 
 function buildTimes(body: any, duration: number): { datum: string; tid: string }[] {

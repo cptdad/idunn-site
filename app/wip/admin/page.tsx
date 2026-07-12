@@ -337,7 +337,7 @@ export default function AdminPage() {
 
       <h2 className="mt-16 font-serif text-2xl text-ink">Hantera tider</h2>
       <p className="mt-1 text-sm text-ink/60">
-        Lägg till lediga 30-minuterstider. Behandlingens längd avgör hur många i
+        Lägg till lediga 15-minuterstider. Behandlingens längd avgör hur många i
         följd som bokas.
       </p>
 
@@ -358,7 +358,7 @@ export default function AdminPage() {
           <label className="mt-3 block text-sm text-ink/80">Tid (HH:MM)</label>
           <input
             type="time"
-            step={1800}
+            step={900}
             value={tid}
             onChange={(e) => setTid(e.target.value)}
             className="mt-1 w-full rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
@@ -381,13 +381,13 @@ export default function AdminPage() {
             Generera tider för en dag
           </h2>
           <p className="mt-1 text-xs text-ink/50">
-            Skapar 30-min-tider mellan start och slut (använder datumet till
+            Skapar 15-min-tider mellan start och slut (använder datumet till
             vänster).
           </p>
           <label className="mt-4 block text-sm text-ink/80">Från</label>
           <input
             type="time"
-            step={1800}
+            step={900}
             value={start}
             onChange={(e) => setStart(e.target.value)}
             className="mt-1 w-full rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"
@@ -395,7 +395,7 @@ export default function AdminPage() {
           <label className="mt-3 block text-sm text-ink/80">Till</label>
           <input
             type="time"
-            step={1800}
+            step={900}
             value={slut}
             onChange={(e) => setSlut(e.target.value)}
             className="mt-1 w-full rounded-lg border border-line bg-cream px-3 py-2 text-ink outline-none focus:border-gold"

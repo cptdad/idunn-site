@@ -1,7 +1,7 @@
 // Hjälp för tidsblock. Alla tider ligger på ett 30-minutersraster; en bokning
 // kan spänna över flera block i följd beroende på behandlingens längd.
 
-export const BLOCK = 30;
+export const BLOCK = 15;
 
 export function requiredBlocks(minutes: number): number {
   return Math.max(1, Math.ceil(minutes / BLOCK));
