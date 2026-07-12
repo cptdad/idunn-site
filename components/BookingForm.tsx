@@ -488,7 +488,7 @@ export default function BookingForm() {
           <p className="mt-1 text-xs text-sage-dark">{pnrCheck.error}</p>
         )}
         {consultationReq && (
-          <p className="mt-1 text-xs text-ink/60">
+          <p className="mt-2 rounded-lg border border-red-300 bg-red-50 p-3 text-sm font-semibold text-red-700">
             Den här behandlingen kräver en kostnadsfri konsultation — boka minst
             48 timmar fram.
           </p>
