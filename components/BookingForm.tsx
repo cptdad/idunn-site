@@ -92,6 +92,7 @@ export default function BookingForm() {
         rendered.current = true;
         w.turnstile.render(widgetRef.current, {
           sitekey: siteKey,
+          theme: "light",
           callback: (t: string) => setToken(t),
           "error-callback": () => setToken(""),
           "expired-callback": () => setToken(""),
