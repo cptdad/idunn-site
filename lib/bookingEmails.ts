@@ -1,5 +1,6 @@
 // Delad e-postlogik för bekräftade bokningar (används av /api/boka för gratis
 // bokningar och av Stripe-webhooken när en betalning gått igenom).
+import { parseAreas, consultationRequired } from "@/lib/consultation";
 
 type Booking = {
   id?: number;
@@ -63,44 +64,6 @@ function careBlock(omrade: string): string {
   );
 }
 
-// Områdesnamn ur omrade-strängen "Kategori: A, B (X ml)".
-function parseAreas(omrade: string): string[] {
-  const after = (omrade || "").split(": ")[1] || "";
-  const names = after.split(" (")[0] || "";
-  return names
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
-
-// Krävs lagstadgad konsultation? Ja om kunden är ny (inget tidigare besök),
-// eller om något valt område inte behandlats de senaste sex månaderna.
-async function needsConsultation(env: any, b: Booking): Promise<boolean> {
-  const pnr = b.personnummer;
-  if (!pnr) return true;
-  try {
-    const { results } = await env.DB.prepare(
-      "SELECT omrade, datum FROM bookings WHERE personnummer = ? AND status = 'active' AND id != ?"
-    )
-      .bind(pnr, b.id ?? -1)
-      .all();
-    const prior = results ?? [];
-    if (prior.length === 0) return true; // ny kund
-    const sixMonthsAgo = new Date(Date.now() - 182 * 24 * 3600 * 1000)
-      .toISOString()
-      .slice(0, 10);
-    const treated = new Set<string>();
-    for (const p of prior) {
-      if (p.datum >= sixMonthsAgo) {
-        for (const a of parseAreas(p.omrade)) treated.add(a);
-      }
-    }
-    const current = parseAreas(b.omrade || "");
-    return current.some((a) => !treated.has(a)); // nytt/olämnat område
-  } catch {
-    return true; // vid osäkerhet: visa konsultationstexten
-  }
-}
 
 export async function sendBookingConfirmation(env: any, b: Booking) {
   const apiKey = env.RESEND_API_KEY;
@@ -113,7 +76,12 @@ export async function sendBookingConfirmation(env: any, b: Booking) {
   const langd = b.duration || 30;
   const link = `${base}/avboka?token=${b.token}`;
   const belopp = b.amount ? `${b.amount} kr (betald)` : "-";
-  const consultation = await needsConsultation(env, b);
+  const consultation = await consultationRequired(
+    env,
+    b.personnummer || "",
+    parseAreas(b.omrade || ""),
+    b.id
+  );
 
   // Notis till kliniken
   await sendEmail(apiKey, {

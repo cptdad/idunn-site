@@ -6,6 +6,8 @@ import { getStripe } from "@/lib/stripe";
 import { sendBookingConfirmation } from "@/lib/bookingEmails";
 import { categoryByKey, computeQuantity, estimatedMinutes } from "@/lib/treatments";
 import { requiredBlocks, slotTimes, BLOCK } from "@/lib/slots";
+import { consultationRequired } from "@/lib/consultation";
+import { stockholmMs } from "@/lib/time";
 
 export const dynamic = "force-dynamic";
 
@@ -103,9 +105,20 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
-    const omrade = `${cat.title}: ${
-      (Array.isArray(areas) ? areas : []).join(", ") || "–"
-    } (${qty} ${cat.unitPlural})`;
+    const areasArr = Array.isArray(areas) ? areas : [];
+    const omrade = `${cat.title}: ${areasArr.join(", ") || "–"} (${qty} ${cat.unitPlural})`;
+
+    // Lagstadgad konsultation (48h) – nya kunder / nya områden
+    const consult = await consultationRequired(env, pnr.normalized || "", areasArr);
+    if (consult && stockholmMs(slot.datum, slot.tid) < Date.now() + 48 * 3600 * 1000) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "Den här behandlingen kräver en konsultation minst 48 timmar innan. Välj en tid längre fram.",
+        },
+        { status: 400 }
+      );
+    }
 
     // Behandlingstid → antal block → tider som måste vara lediga i följd
     let timeCfg = { base: 15, per_ml: 10, per_area: 5 };

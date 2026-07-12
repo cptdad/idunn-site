@@ -1,4 +1,5 @@
 import { getStripe } from "@/lib/stripe";
+import { stockholmMs } from "@/lib/time";
 
 // Återbetalar en (del av en) betald bokning via Stripe.
 // fraction 1 = full återbetalning, 0.5 = hälften (t.ex. sen avbokning).
@@ -23,8 +24,7 @@ export async function refundBooking(
   }
 }
 
-// Timmar kvar till besöket (datum "YYYY-MM-DD", tid "HH:MM").
+// Timmar kvar till besöket (svensk tid).
 export function hoursUntil(datum: string, tid: string): number {
-  const when = new Date(`${datum}T${tid}:00`).getTime();
-  return (when - Date.now()) / 3600000;
+  return (stockholmMs(datum, tid) - Date.now()) / 3600000;
 }
