@@ -93,6 +93,7 @@ export default function BookingForm() {
         w.turnstile.render(widgetRef.current, {
           sitekey: siteKey,
           theme: "light",
+          size: "flexible",
           callback: (t: string) => setToken(t),
           "error-callback": () => setToken(""),
           "expired-callback": () => setToken(""),
@@ -570,7 +571,7 @@ export default function BookingForm() {
         </span>
       </label>
 
-      {siteKey && <div ref={widgetRef} className="mt-5" />}
+      {siteKey && <div ref={widgetRef} className="mt-5 flex justify-center" />}
 
       <button
         type="submit"
