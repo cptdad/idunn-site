@@ -28,6 +28,7 @@ export default function AdminPage() {
   const [memNamn, setMemNamn] = useState("");
   const [memAmount, setMemAmount] = useState("");
   const [memLink, setMemLink] = useState("");
+  const [memSentTo, setMemSentTo] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -262,6 +263,7 @@ export default function AdminPage() {
     setBusy(false);
     if (d.ok) {
       setMemLink(d.url);
+      setMemSentTo(d.emailed ? memEmail : "");
       setMemEmail("");
       setMemNamn("");
       setMemAmount("");
@@ -749,8 +751,8 @@ export default function AdminPage() {
       <div className="mt-16">
         <h2 className="font-serif text-xl text-ink">Medlemskap</h2>
         <p className="mt-1 text-xs text-ink/50">
-          Skapa en betallänk med individuellt månadsbelopp. Kunden anger kort och
-          Stripe drar månadsvis automatiskt.
+          Skapa ett medlemskap med individuellt månadsbelopp. Betallänken mejlas
+          automatiskt till kunden. Kunden anger kort och Stripe drar månadsvis.
         </p>
 
         <form
@@ -785,13 +787,18 @@ export default function AdminPage() {
             disabled={busy}
             className="mt-5 rounded-full bg-gold px-6 py-2.5 text-sm text-cream hover:bg-gold-light disabled:opacity-60"
           >
-            Skapa medlemskapslänk
+            Skapa och mejla länk
           </button>
         </form>
 
         {memLink && (
           <div className="mt-4 max-w-md rounded-lg border border-gold bg-cream p-4 text-sm">
-            <p className="text-ink/70">Skicka den här länken till kunden:</p>
+            <p className="text-ink/80">
+              {memSentTo
+                ? `✓ Betallänken har mejlats till ${memSentTo}.`
+                : "Länk skapad, men mejlet kunde inte skickas. Skicka den manuellt:"}
+            </p>
+            <p className="mt-2 text-xs text-ink/50">Länk (för säkerhets skull):</p>
             <a href={memLink} className="mt-1 block break-all text-gold underline">
               {memLink}
             </a>

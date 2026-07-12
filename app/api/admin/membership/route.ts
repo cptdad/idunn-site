@@ -44,7 +44,40 @@ export async function POST(request: Request) {
       success_url: `${base}/medlemskap/klar`,
       cancel_url: `${base}/naturligt-underhall`,
     });
-    return NextResponse.json({ ok: true, url: session.url });
+
+    // Skicka länken direkt till kunden via e-post.
+    let emailed = false;
+    const apiKey = env.RESEND_API_KEY;
+    if (apiKey && session.url) {
+      const from = env.MAIL_FROM || "Idunn Estetik <onboarding@resend.dev>";
+      const notify = env.NOTIFY_EMAIL || "info@idunn-estetik.se";
+      const hej = namn ? `Hej ${namn},` : "Hej,";
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          from,
+          to: email,
+          reply_to: notify,
+          subject: "Ditt medlemskap – Iðunn Naturligt underhåll",
+          text:
+            `${hej}\n\n` +
+            `Tack för att du vill bli medlem i Iðunn Naturligt underhåll.\n\n` +
+            `Ditt månadsbelopp är ${amt} kr och dras automatiskt varje månad.\n\n` +
+            `Slutför din anmälan och lägg till ditt kort här:\n${session.url}\n\n` +
+            `Du kan avsluta medlemskapet när du vill – hör bara av dig till oss.\n\n` +
+            `Vänliga hälsningar,\n` +
+            `Iðunn Estetik Stockholm`,
+        }),
+      });
+      emailed = res.ok;
+      if (!res.ok) console.error("Resend-fel (membership):", res.status, await res.text());
+    }
+
+    return NextResponse.json({ ok: true, url: session.url, emailed });
   } catch (e) {
     console.error("Stripe-fel (membership):", e);
     return NextResponse.json(
