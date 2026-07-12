@@ -32,6 +32,10 @@ export default function Boka() {
             <li>• Nära Gullmarsplan, Stockholm</li>
             <li>• Endast för dig som är 18 år eller äldre</li>
           </ul>
+          <div className="mt-8 rounded-lg border border-line bg-beige/40 p-4 text-sm text-ink/75">
+            Avbokning senare än <strong>24 timmar</strong> före besöket debiteras
+            med <strong> 50 %</strong> av behandlingens pris.
+          </div>
         </div>
         <BookingForm />
       </div>

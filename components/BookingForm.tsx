@@ -548,11 +548,6 @@ export default function BookingForm() {
         />
       </div>
 
-      <div className="mt-5 rounded-lg border border-line bg-beige/40 p-4 text-sm text-ink/75">
-        Avbokning senare än <strong>24 timmar</strong> före besöket debiteras med
-        <strong> 50 %</strong> av behandlingens pris.
-      </div>
-
       <label className="mt-5 flex items-start gap-3 text-sm text-ink/75">
         <input
           type="checkbox"
